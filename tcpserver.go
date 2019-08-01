@@ -9,7 +9,6 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 )
 
@@ -23,6 +22,24 @@ type Server struct {
 	activeConnections    int32
 	maxAcceptConnections int32
 	tlsConfig            *tls.Config
+	listenConfig         *ListenConfig
+}
+
+type ListenConfig struct {
+	net.ListenConfig
+	// Enable/disable SO_REUSEPORT (SO_REUSEADDR is enabled by default)
+	SocketReusePort bool
+	// Enable/disable TCP_FASTOPEN (requires Linux >=3.7 or Windows 10, version 1607)
+	// see https://lwn.net/Articles/508865/
+	SocketFastOpen bool
+	// Queue length for TCP_FASTOPEN (default 1024)
+	SocketFastOpenQueueLen int
+	// Enable/disable TCP_DEFER_ACCEPT (requires Linux >=2.4)
+	SocketDeferAccept bool
+}
+
+var defaultListenConfig *ListenConfig = &ListenConfig{
+	SocketReusePort: true,
 }
 
 type Connection struct {
@@ -34,11 +51,10 @@ type Connection struct {
 
 type RequestHandlerFunc func(conn *Connection)
 
-// TCPListener based method that are required
+// net.TCPListener satisfies advancedListener interface
 type advancedListener interface {
 	net.Listener
 	SetDeadline(t time.Time) error
-	SyscallConn() (syscall.RawConn, error)
 }
 
 // Creates a new server instance
@@ -49,21 +65,29 @@ func NewServer(listenAddr string) (*Server, error) {
 	}
 	return &Server{
 		listenAddr: la,
+		listenConfig: defaultListenConfig,
 	}, nil
 }
 
 // Sets TLS config but does not enable TLS yet. TLS can be either enabled
-// by calling server.EnableTLS() before server.Listen() or later using
-// connection.StartTLS()
+// by using server.ListebTLS() or later by using connection.StartTLS()
 func (s *Server) SetTLSConfig(config *tls.Config) {
 	s.tlsConfig = config
 }
 
-// Sets TLS config but does not enable TLS yet. TLS can be either enabled
-// by calling server.EnableTLS() before server.Listen() or later using
-// connection.StartTLS()
+// Returns previously set TLS config
 func (s *Server) GetTLSConfig() *tls.Config {
 	return s.tlsConfig
+}
+
+// Sets listen config
+func (s *Server) SetListenConfig(config *ListenConfig) {
+	s.listenConfig = config
+}
+
+// Returns listen config
+func (s *Server) GetListenConfig() *ListenConfig {
+	return s.listenConfig
 }
 
 // Starts listening
@@ -72,9 +96,16 @@ func (s *Server) Listen() (err error) {
 	if IsIPv6Addr(s.listenAddr) {
 		network = "tcp6"
 	}
-	s.listener, err = net.ListenTCP(network, s.listenAddr)
+
+	s.listenConfig.Control = applyListenSocketOptions(s.listenConfig)
+	l, err := s.listenConfig.Listen(*s.GetContext(), network, s.listenAddr.String())
 	if err != nil {
 		return err
+	}
+	if tcpl, ok := l.(*net.TCPListener); ok {
+		s.listener = tcpl
+	} else {
+		return fmt.Errorf("listener must be of type net.TCPListener")
 	}
 
 	return nil
@@ -126,8 +157,7 @@ func (s *Server) Shutdown(d time.Duration) (err error) {
 
 // Shutdown server immediately, do not wait for any connections
 func (s *Server) Halt() (err error) {
-	s.Shutdown(-1 * time.Second)
-	return nil
+	return s.Shutdown(-1 * time.Second)
 }
 
 // Serves requests (accept / handle loop)
@@ -138,11 +168,11 @@ func (s *Server) Serve() error {
 
 	for {
 		if s.shutdown {
-			s.listener.Close()
+			_ = s.listener.Close()
 			break
 		}
 
-		s.listener.SetDeadline(time.Now().Add(1 * time.Second))
+		_ = s.listener.SetDeadline(time.Now().Add(1 * time.Second))
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if opErr, ok := err.(*net.OpError); ok {
@@ -183,9 +213,9 @@ func (s *Server) Serve() error {
 		acceptedConnections++
 		go func() {
 			myConn := &Connection{
-				Conn: conn.(*net.TCPConn),
-				server:  s,
-				ts:      time.Now(),
+				Conn:   conn.(*net.TCPConn),
+				server: s,
+				ts:     time.Now(),
 			}
 			s.requestHandler(myConn)
 			myConn.Close()
