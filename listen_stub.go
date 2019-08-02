@@ -1,7 +1,7 @@
 // Copyright 2019 Moritz Fain
 // Moritz Fain <moritz@fain.io>
 
-// +build !linux
+// +build !linux,!windows
 
 package tcpserver
 

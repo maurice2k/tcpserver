@@ -25,14 +25,25 @@ type Server struct {
 	listenConfig         *ListenConfig
 }
 
+type Connection struct {
+	net.Conn
+	server *Server
+	ctx    *context.Context
+	ts     time.Time
+}
+
 type ListenConfig struct {
-	net.ListenConfig
-	// Enable/disable SO_REUSEPORT (SO_REUSEADDR is enabled by default)
+	lc net.ListenConfig
+	// Enable/disable SO_REUSEPORT (requires Linux >=2.4)
 	SocketReusePort bool
 	// Enable/disable TCP_FASTOPEN (requires Linux >=3.7 or Windows 10, version 1607)
-	// see https://lwn.net/Articles/508865/
+	// For Linux:
+	// - see https://lwn.net/Articles/508865/
+	// - enable with "echo 3 >/proc/sys/net/ipv4/tcp_fastopen" for client and server
+	// For Windows:
+	// - enable with "netsh int tcp set global fastopen=enabled"
 	SocketFastOpen bool
-	// Queue length for TCP_FASTOPEN (default 1024)
+	// Queue length for TCP_FASTOPEN (default 256)
 	SocketFastOpenQueueLen int
 	// Enable/disable TCP_DEFER_ACCEPT (requires Linux >=2.4)
 	SocketDeferAccept bool
@@ -40,13 +51,6 @@ type ListenConfig struct {
 
 var defaultListenConfig *ListenConfig = &ListenConfig{
 	SocketReusePort: true,
-}
-
-type Connection struct {
-	net.Conn
-	server *Server
-	ctx    *context.Context
-	ts     time.Time
 }
 
 type RequestHandlerFunc func(conn *Connection)
@@ -97,8 +101,8 @@ func (s *Server) Listen() (err error) {
 		network = "tcp6"
 	}
 
-	s.listenConfig.Control = applyListenSocketOptions(s.listenConfig)
-	l, err := s.listenConfig.Listen(*s.GetContext(), network, s.listenAddr.String())
+	s.listenConfig.lc.Control = applyListenSocketOptions(s.listenConfig)
+	l, err := s.listenConfig.lc.Listen(*s.GetContext(), network, s.listenAddr.String())
 	if err != nil {
 		return err
 	}
@@ -162,6 +166,9 @@ func (s *Server) Halt() (err error) {
 
 // Serves requests (accept / handle loop)
 func (s *Server) Serve() error {
+	if s.listener == nil {
+		return fmt.Errorf("no valid listener found; call Listen() or ListenTLS() first")
+	}
 	var connWaitGroup sync.WaitGroup
 	var tempDelay time.Duration
 	var acceptedConnections int32 = 0
