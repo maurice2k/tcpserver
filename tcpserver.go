@@ -20,7 +20,8 @@ type Server struct {
 	requestHandler       RequestHandlerFunc
 	ctx                  *context.Context
 	activeConnections    int32
-	maxAcceptConnections int32
+	maxAcceptConnections int64
+	acceptedConnections  int64
 	tlsConfig            *tls.Config
 	listenConfig         *ListenConfig
 }
@@ -68,7 +69,7 @@ func NewServer(listenAddr string) (*Server, error) {
 		return nil, fmt.Errorf("error resolving address '%s': %s", listenAddr, err)
 	}
 	return &Server{
-		listenAddr: la,
+		listenAddr:   la,
 		listenConfig: defaultListenConfig,
 	}, nil
 }
@@ -132,8 +133,18 @@ func (s *Server) ListenTLS() (err error) {
 
 // Sets maximum number of connections that are being accepted before the
 // server automatically shutdowns
-func (s *Server) SetMaxAcceptConnections(limit int32) {
-	atomic.StoreInt32(&s.maxAcceptConnections, limit)
+func (s *Server) SetMaxAcceptConnections(limit int64) {
+	atomic.StoreInt64(&s.maxAcceptConnections, limit)
+}
+
+// Returns number of currently active connections
+func (s *Server) GetActiveConnections() int32 {
+	return s.activeConnections
+}
+
+// Returns number of accepted connections
+func (s *Server) GetAcceptedConnections() int64 {
+	return s.acceptedConnections
 }
 
 // Returns listening address
@@ -171,7 +182,6 @@ func (s *Server) Serve() error {
 	}
 	var connWaitGroup sync.WaitGroup
 	var tempDelay time.Duration
-	var acceptedConnections int32 = 0
 
 	for {
 		if s.shutdown {
@@ -217,7 +227,7 @@ func (s *Server) Serve() error {
 		tempDelay = 0
 		connWaitGroup.Add(1)
 		atomic.AddInt32(&s.activeConnections, 1)
-		acceptedConnections++
+		s.acceptedConnections++
 		go func() {
 			myConn := &Connection{
 				Conn:   conn.(*net.TCPConn),
@@ -230,7 +240,7 @@ func (s *Server) Serve() error {
 			atomic.AddInt32(&s.activeConnections, -1)
 		}()
 
-		if s.maxAcceptConnections > 0 && acceptedConnections >= s.maxAcceptConnections {
+		if s.maxAcceptConnections > 0 && s.acceptedConnections >= s.maxAcceptConnections {
 			s.Shutdown(0)
 			break
 		}

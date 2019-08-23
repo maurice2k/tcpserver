@@ -1,7 +1,11 @@
 package main
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
+	"flag"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -9,18 +13,39 @@ import (
 	"tcpserver"
 )
 
+var port int
+var keepAlive bool
+
 func main() {
-	server, _ := tcpserver.NewServer("127.0.0.1:18080")
+	tfMap := make(map[bool]string)
+	tfMap[true] = "on"
+	tfMap[false] = "off"
+
+	flag.IntVar(&port, "port", 8000, "server port")
+	flag.BoolVar(&keepAlive, "keepalive", true, "use HTTP Keep-Alive")
+	flag.Parse()
+
+	listenAddr := fmt.Sprintf("127.0.0.1:%d", port)
+
+	fmt.Printf("Running http server on %s\n", listenAddr)
+	fmt.Printf(" - keepalive: %s\n", tfMap[keepAlive])
+
+	server, _ := tcpserver.NewServer(listenAddr)
 	server.SetListenConfig(&tcpserver.ListenConfig{
+		SocketReusePort: true,
 		SocketFastOpen:    false,
 		SocketDeferAccept: false,
 	})
 	server.SetRequestHandler(requestHandler)
 	err := server.Listen()
-	fmt.Println(err)
-	err = server.Serve()
-	fmt.Println(err)
+	if err != nil {
+		panic("Error listening on interface: " + err.Error())
+	}
 
+	err = server.Serve()
+	if err != nil {
+		panic("Error serving: " + err.Error())
+	}
 }
 
 type request struct {
@@ -36,6 +61,9 @@ func requestHandler(conn *tcpserver.Connection) {
 	var req request
 	for {
 		n, err := conn.Read(buf)
+		if err != nil {
+			break
+		}
 		data = append(data, buf[0:n]...)
 		leftover, err := parsereq(data, &req)
 		if err != nil {
@@ -48,12 +76,20 @@ func requestHandler(conn *tcpserver.Connection) {
 		}
 		// handle the request
 		req.remoteAddr = conn.RemoteAddr().String()
-		out = appendhandle(out, &req)
-		break
+
+		sha1Str := []byte("This page intentionally left blank.")
+		sha1Str[0] = byte(rand.Int())
+		sha1Str[1] = byte(rand.Int())
+		sha1Bytes := sha1.Sum(sha1Str)
+
+		out = appendresp(out, "200 OK", "", hex.EncodeToString(sha1Bytes[:]))
+		time.Sleep(time.Millisecond * 1)
+		conn.Write(out)
+
+		data = nil
+		out = nil
 	}
 
-	//time.Sleep(time.Millisecond * 2)
-	conn.Write(out)
 	return
 }
 
@@ -73,7 +109,7 @@ func appendresp(b []byte, status, head, body string) []byte {
 	b = append(b, ' ')
 	b = append(b, status...)
 	b = append(b, '\r', '\n')
-	b = append(b, "Server: evio\r\n"...)
+	b = append(b, "Server: tsrv\r\n"...)
 	//b = append(b, "Connection: close\r\n"...)
 	b = append(b, "Date: "...)
 	b = time.Now().AppendFormat(b, "Mon, 02 Jan 2006 15:04:05 GMT")
