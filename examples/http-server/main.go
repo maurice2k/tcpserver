@@ -1,19 +1,17 @@
 package main
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
+	"tcpserver"
+
 	"flag"
 	"fmt"
-	"math/rand"
 	"strconv"
 	"strings"
 	"time"
-
-	"tcpserver"
 )
 
 var port int
+var sleep int
 var keepAlive bool
 
 func main() {
@@ -23,16 +21,20 @@ func main() {
 
 	flag.IntVar(&port, "port", 8000, "server port")
 	flag.BoolVar(&keepAlive, "keepalive", true, "use HTTP Keep-Alive")
+	flag.IntVar(&sleep, "sleep", 0, "sleep number of milliseconds per request")
 	flag.Parse()
 
 	listenAddr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	fmt.Printf("Running http server on %s\n", listenAddr)
 	fmt.Printf(" - keepalive: %s\n", tfMap[keepAlive])
+	if sleep > 0 {
+		fmt.Printf(" - sleep ms per request: %d ms\n", sleep)
+	}
 
 	server, _ := tcpserver.NewServer(listenAddr)
 	server.SetListenConfig(&tcpserver.ListenConfig{
-		SocketReusePort: true,
+		SocketReusePort:   true,
 		SocketFastOpen:    false,
 		SocketDeferAccept: false,
 	})
@@ -77,14 +79,16 @@ func requestHandler(conn *tcpserver.Connection) {
 		// handle the request
 		req.remoteAddr = conn.RemoteAddr().String()
 
-		sha1Str := []byte("This page intentionally left blank.")
-		sha1Str[0] = byte(rand.Int())
-		sha1Str[1] = byte(rand.Int())
-		sha1Bytes := sha1.Sum(sha1Str)
+		out = appendresp(out, "200 OK", "", res)
 
-		out = appendresp(out, "200 OK", "", hex.EncodeToString(sha1Bytes[:]))
-		time.Sleep(time.Millisecond * 1)
+		if sleep > 0 {
+			time.Sleep(time.Millisecond * time.Duration(sleep))
+		}
 		conn.Write(out)
+
+		if !keepAlive {
+			break
+		}
 
 		data = nil
 		out = nil
@@ -95,12 +99,6 @@ func requestHandler(conn *tcpserver.Connection) {
 
 var res string = "Hello World!\r\n"
 
-// appendhandle handles the incoming request and appends the response to
-// the provided bytes, which is then returned to the caller.
-func appendhandle(b []byte, req *request) []byte {
-	return appendresp(b, "200 OK", "", res)
-}
-
 // appendresp will append a valid http response to the provide bytes.
 // The status param should be the code plus text such as "200 OK".
 // The head parameter should be a series of lines ending with "\r\n" or empty.
@@ -110,7 +108,9 @@ func appendresp(b []byte, status, head, body string) []byte {
 	b = append(b, status...)
 	b = append(b, '\r', '\n')
 	b = append(b, "Server: tsrv\r\n"...)
-	//b = append(b, "Connection: close\r\n"...)
+	if !keepAlive {
+		b = append(b, "Connection: close\r\n"...)
+	}
 	b = append(b, "Date: "...)
 	b = time.Now().AppendFormat(b, "Mon, 02 Jan 2006 15:04:05 GMT")
 	b = append(b, '\r', '\n')
