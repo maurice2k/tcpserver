@@ -1,0 +1,16 @@
+set term png
+
+set terminal png size 1200,500
+set output "graph.png"
+
+#set autoscale
+set yrange[0:]
+set ylabel "requests/sec"
+set xlabel "GOMAXPROCS"
+set style data histogram
+set style histogram cluster gap 1
+set style fill solid border -1
+set boxwidth 0.8
+set xtics rotate by -45 scale 0
+set key outside right above
+plot "results.dat" using 2:xticlabels(1) ti col, '' u 3 ti col

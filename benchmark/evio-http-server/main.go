@@ -5,11 +5,12 @@
 package main
 
 import (
-	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
-	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -28,31 +29,27 @@ type request struct {
 
 var keepAlive bool
 var sleep int
+var sha bool
 
 func main() {
 	var port int
 	var loops int
-	var aaaa bool
-	var noparse bool
+	var aaaa int
 	var unixsocket string
 	var stdlib bool
 
 	flag.StringVar(&unixsocket, "unixsocket", "", "unix socket")
 	flag.IntVar(&port, "port", 8080, "server port")
-	flag.BoolVar(&aaaa, "aaaa", false, "aaaaa....")
-	flag.BoolVar(&noparse, "noparse", true, "do not parse requests")
+	flag.IntVar(&aaaa, "aaaa", 0, "aaaaa.... (default output is 'Hello World')")
 	flag.BoolVar(&stdlib, "stdlib", false, "use stdlib")
 	flag.IntVar(&loops, "loops", 0, "num loops")
 	flag.BoolVar(&keepAlive, "keepalive", true, "use HTTP Keep-Alive")
+	flag.BoolVar(&sha, "sha", false, "output sha256 instead of plain response")
 	flag.IntVar(&sleep, "sleep", 0, "sleep number of milliseconds per request")
 	flag.Parse()
 
-	if os.Getenv("NOPARSE") == "1" {
-		noparse = true
-	}
-
-	if aaaa {
-		res = strings.Repeat("a", 1024)
+	if aaaa > 0 {
+		res = strings.Repeat("a", aaaa)
 	} else {
 		res = "Hello World!\r\n"
 	}
@@ -60,7 +57,7 @@ func main() {
 	var events evio.Events
 	events.NumLoops = loops
 	events.Serving = func(srv evio.Server) (action evio.Action) {
-		log.Printf("http server started on port %d (loops: %d)", port, srv.NumLoops)
+		log.Printf("http server started on port %d with GOMAXPROCS=%d (loops: %d)", port, runtime.GOMAXPROCS(0), srv.NumLoops)
 		if unixsocket != "" {
 			log.Printf("http server started at %s", unixsocket)
 		}
@@ -87,11 +84,6 @@ func main() {
 		}
 		is := c.Context().(*evio.InputStream)
 		data := is.Begin(in)
-		if noparse && bytes.Contains(data, []byte("\r\n\r\n")) {
-			// for testing minimal single packet request -> response.
-			out = appendresp(nil, "200 OK", "", res)
-			return
-		}
 		// process the pipeline
 		var req request
 		for {
@@ -107,7 +99,14 @@ func main() {
 			}
 			// handle the request
 			req.remoteAddr = c.RemoteAddr().String()
-			out = appendhandle(out, &req)
+
+			if sha {
+				sha256sum := sha256.Sum256([]byte(res))
+				out = appendresp(out, "200 OK", "", hex.EncodeToString(sha256sum[:]))
+			} else {
+				out = appendresp(out, "200 OK", "", res)
+			}
+
 			data = leftover
 		}
 		if sleep > 0 {
@@ -131,12 +130,6 @@ func main() {
 	}
 	// Start serving!
 	log.Fatal(evio.Serve(events, addrs...))
-}
-
-// appendhandle handles the incoming request and appends the response to
-// the provided bytes, which is then returned to the caller.
-func appendhandle(b []byte, req *request) []byte {
-	return appendresp(b, "200 OK", "", res)
 }
 
 // appendresp will append a valid http response to the provide bytes.
