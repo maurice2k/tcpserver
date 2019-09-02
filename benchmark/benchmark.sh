@@ -3,7 +3,7 @@
 bombardier='/opt/bombardier-linux-amd64'
 
 cpus=`grep ^processor /proc/cpuinfo |wc -l`
-cpus=24
+cpus=4
 
 
 run_server() {
@@ -50,14 +50,14 @@ test_http_server() {
 }
 
 plot_results() {
-    echo "GOMAXPROCS evio tcpserver" >results.dat
+    echo "GOMAXPROCS evio tcpserver" >$1-results.dat
     for ((i=0; i<$cpus; i++))
     do
-        echo "$(($i+1)) ${results_evio[$i]} ${results_tcpserver[$i]}" >>results.dat
+        echo "$(($i+1)) ${results_evio[$i]} ${results_tcpserver[$i]}" >>$1-results.dat
     done
 
-    gnuplot plotter.txt
-    mv graph.png $1
+    gnuplot -e "results='$1-results.dat'" plotter.txt
+    mv graph.png "$1-graph.png"
 }
 
 
@@ -71,7 +71,7 @@ test_http_server '../examples/http-server/main.go' '-keepalive=1 -port=8080 -aaa
 results_tcpserver=("${results[@]}")
 echo ""
 
-plot_results "test01-graph.png"
+plot_results "test01"
 
 
 ### TEST #2, 1024 byte, keepalive off
@@ -84,4 +84,4 @@ test_http_server '../examples/http-server/main.go' '-keepalive=0 -port=8080 -aaa
 results_tcpserver=("${results[@]}")
 echo ""
 
-plot_results "test02-graph.png"
+plot_results "test02"
