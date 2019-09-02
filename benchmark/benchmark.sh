@@ -3,7 +3,6 @@
 bombardier='/opt/bombardier-linux-amd64'
 
 cpus=`grep ^processor /proc/cpuinfo |wc -l`
-cpus=4
 
 
 run_server() {
@@ -85,3 +84,55 @@ results_tcpserver=("${results[@]}")
 echo ""
 
 plot_results "test02"
+
+
+### TEST #3, SHA256(1024 byte), keepalive on
+
+test_http_server 'evio-http-server/main.go' '-keepalive=1 -port=8080 -aaaa=1024 -sha -sleep=0 -loops=`echo $GOMAXPROCS`'
+results_evio=("${results[@]}")
+echo ""
+
+test_http_server '../examples/http-server/main.go' '-keepalive=1 -port=8080 -aaaa=1024 -sha -sleep=0'
+results_tcpserver=("${results[@]}")
+echo ""
+
+plot_results "test03"
+
+
+### TEST #4, SHA256(1024 byte), keepalive off
+
+test_http_server 'evio-http-server/main.go' '-keepalive=0 -port=8080 -aaaa=1024 -sha -sleep=0 -loops=`echo $GOMAXPROCS`'
+results_evio=("${results[@]}")
+echo ""
+
+test_http_server '../examples/http-server/main.go' '-keepalive=0 -port=8080 -aaaa=1024 -sha -sleep=0'
+results_tcpserver=("${results[@]}")
+echo ""
+
+plot_results "test04"
+
+
+### TEST #5, 128 byte, keepalive on, sleep 1 ms
+
+test_http_server 'evio-http-server/main.go' '-keepalive=1 -port=8080 -aaaa=128 -sleep=1 -loops=`echo $GOMAXPROCS`'
+results_evio=("${results[@]}")
+echo ""
+
+test_http_server '../examples/http-server/main.go' '-keepalive=1 -port=8080 -aaaa=128 -sleep=1'
+results_tcpserver=("${results[@]}")
+echo ""
+
+plot_results "test05"
+
+
+### TEST #5, 1024 byte, keepalive on, sleep 1 ms
+
+test_http_server 'evio-http-server/main.go' '-keepalive=1 -port=8080 -aaaa=1024 -sleep=1 -loops=`echo $GOMAXPROCS`'
+results_evio=("${results[@]}")
+echo ""
+
+test_http_server '../examples/http-server/main.go' '-keepalive=1 -port=8080 -aaaa=1024 -sleep=1'
+results_tcpserver=("${results[@]}")
+echo ""
+
+plot_results "test06"
