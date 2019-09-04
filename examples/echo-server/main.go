@@ -9,6 +9,7 @@ import (
 	"tcpserver"
 )
 
+var listenAddr string
 var port int
 var zeroCopy bool
 
@@ -17,11 +18,9 @@ func main() {
 	tfMap[true] = "on"
 	tfMap[false] = "off"
 
-	flag.IntVar(&port, "port", 5001, "server port")
+	flag.StringVar(&listenAddr, "listen", "127.0.0.1:5000", "server listen addr")
 	flag.BoolVar(&zeroCopy, "zerocopy", true, "use splice/sendfile zero copy")
 	flag.Parse()
-
-	listenAddr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	fmt.Printf("Running echo server on %s\n", listenAddr)
 	fmt.Printf(" - zerocopy: %s\n", tfMap[zeroCopy])

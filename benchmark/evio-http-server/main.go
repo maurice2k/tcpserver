@@ -27,19 +27,19 @@ type request struct {
 	remoteAddr    string
 }
 
+var listenAddr string
 var keepAlive bool
 var sleep int
 var sha bool
 
 func main() {
-	var port int
 	var loops int
 	var aaaa int
 	var unixsocket string
 	var stdlib bool
 
 	flag.StringVar(&unixsocket, "unixsocket", "", "unix socket")
-	flag.IntVar(&port, "port", 8080, "server port")
+	flag.StringVar(&listenAddr, "listen", "127.0.0.1:8000", "server listen addr")
 	flag.IntVar(&aaaa, "aaaa", 0, "aaaaa.... (default output is 'Hello World')")
 	flag.BoolVar(&stdlib, "stdlib", false, "use stdlib")
 	flag.IntVar(&loops, "loops", 0, "num loops")
@@ -57,7 +57,7 @@ func main() {
 	var events evio.Events
 	events.NumLoops = loops
 	events.Serving = func(srv evio.Server) (action evio.Action) {
-		log.Printf("http server started on port %d with GOMAXPROCS=%d (loops: %d)", port, runtime.GOMAXPROCS(0), srv.NumLoops)
+		log.Printf("http server started on %s with GOMAXPROCS=%d (loops: %d)", listenAddr, runtime.GOMAXPROCS(0), srv.NumLoops)
 		if unixsocket != "" {
 			log.Printf("http server started at %s", unixsocket)
 		}
@@ -124,7 +124,7 @@ func main() {
 		ssuf = "-net"
 	}
 	// We at least want the single http address.
-	addrs := []string{fmt.Sprintf("tcp"+ssuf+"://:%d", port)}
+	addrs := []string{fmt.Sprintf("tcp"+ssuf+"://%s", listenAddr)}
 	if unixsocket != "" {
 		addrs = append(addrs, fmt.Sprintf("unix"+ssuf+"://%s", unixsocket))
 	}

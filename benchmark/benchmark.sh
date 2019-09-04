@@ -52,7 +52,7 @@ test_http_server() {
             exit
         fi
 
-        results+=(`$bombardier -c 50 -d 2s 'http://127.0.0.1:8080/' --fasthttp |grep -o 'Reqs/sec.*' |awk '{print $2}'`)
+        results+=(`$bombardier -c 50 -d 2s '$3' --fasthttp |grep -o 'Reqs/sec.*' |awk '{print $2}'`)
 
         kill_server
     done
@@ -75,11 +75,11 @@ plot_results() {
 
 ### TEST #1, 1024 byte, keepalive on
 
-test_http_server 'evio-http-server/main.go' '-keepalive=1 -port=8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`'
+test_http_server 'evio-http-server/main.go' '-keepalive=1 -listen=127.0.0.10:8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.10:8080/'
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=1 -port=8080 -aaaa=1024 -sleep=0'
+test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.11:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.11:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 
@@ -88,11 +88,11 @@ plot_results "test01"
 
 ### TEST #2, 1024 byte, keepalive off
 
-test_http_server 'evio-http-server/main.go' '-keepalive=0 -port=8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`'
+test_http_server 'evio-http-server/main.go' '-keepalive=0 -listen=127.0.0.20:8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.20:8080/'
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=0 -port=8080 -aaaa=1024 -sleep=0'
+test_http_server '../examples/http-server/main.go' '-keepalive=0 -listen=127.0.0.21:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.21:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 
@@ -101,11 +101,11 @@ plot_results "test02"
 
 ### TEST #3, SHA256(1024 byte), keepalive on
 
-test_http_server 'evio-http-server/main.go' '-keepalive=1 -port=8080 -aaaa=1024 -sha -sleep=0 -loops=`echo $GOMAXPROCS`'
+test_http_server 'evio-http-server/main.go' '-keepalive=1 -listen=127.0.0.30:8080 -aaaa=1024 -sha -sleep=0 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.30:8080/'
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=1 -port=8080 -aaaa=1024 -sha -sleep=0'
+test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.31:8080 -aaaa=1024 -sha -sleep=0' 'http://127.0.0.31:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 
@@ -114,11 +114,11 @@ plot_results "test03"
 
 ### TEST #4, SHA256(1024 byte), keepalive off
 
-test_http_server 'evio-http-server/main.go' '-keepalive=0 -port=8080 -aaaa=1024 -sha -sleep=0 -loops=`echo $GOMAXPROCS`'
+test_http_server 'evio-http-server/main.go' '-keepalive=0 -listen=127.0.0.40:8080 -aaaa=1024 -sha -sleep=0 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.40:8080/'
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=0 -port=8080 -aaaa=1024 -sha -sleep=0'
+test_http_server '../examples/http-server/main.go' '-keepalive=0 -listen=127.0.0.41:8080 -aaaa=1024 -sha -sleep=0' 'http://127.0.0.41:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 
@@ -127,11 +127,11 @@ plot_results "test04"
 
 ### TEST #5, 128 byte, keepalive on, sleep 1 ms
 
-test_http_server 'evio-http-server/main.go' '-keepalive=1 -port=8080 -aaaa=128 -sleep=1 -loops=`echo $GOMAXPROCS`'
+test_http_server 'evio-http-server/main.go' '-keepalive=1 -listen=127.0.0.50:8080 -aaaa=128 -sleep=1 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.50:8080/'
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=1 -port=8080 -aaaa=128 -sleep=1'
+test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.51:8080 -aaaa=128 -sleep=1' 'http://127.0.0.51:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 
@@ -140,11 +140,11 @@ plot_results "test05"
 
 ### TEST #6, 1024 byte, keepalive on, sleep 1 ms
 
-test_http_server 'evio-http-server/main.go' '-keepalive=1 -port=8080 -aaaa=1024 -sleep=1 -loops=`echo $GOMAXPROCS`'
+test_http_server 'evio-http-server/main.go' '-keepalive=1 -listen=127.0.0.60:8080 -aaaa=1024 -sleep=1 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.60:8080/'
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=1 -port=8080 -aaaa=1024 -sleep=1'
+test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.61:8080 -aaaa=1024 -sleep=1' 'http://127.0.0.61:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 

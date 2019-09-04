@@ -16,7 +16,7 @@
 bombardier='/opt/bombardier-linux-amd64'
 
 cpus=`grep ^processor /proc/cpuinfo |wc -l`
-
+cpus=12
 
 run_server() {
     GOMAXPROCS=$1
@@ -52,7 +52,7 @@ test_http_server() {
             exit
         fi
 
-        results+=(`$bombardier -c 50 -d 2s 'http://127.0.0.1:8080/' --fasthttp |grep -o 'Reqs/sec.*' |awk '{print $2}'`)
+        results+=(`$bombardier -c 50 -d 2s '$3' --fasthttp |grep -o 'Reqs/sec.*' |awk '{print $2}'`)
 
         kill_server
     done
@@ -75,11 +75,11 @@ plot_results() {
 
 ### TEST #2, 1024 byte, keepalive off
 
-test_http_server 'evio-http-server/main.go' '-keepalive=0 -port=8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`'
+test_http_server 'evio-http-server/main.go' '-keepalive=0 -listen=127.0.0.20:8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.20:8080/'
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=0 -port=8080 -aaaa=1024 -sleep=0'
+test_http_server '../examples/http-server/main.go' '-keepalive=0 -listen=127.0.0.21:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.21:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 

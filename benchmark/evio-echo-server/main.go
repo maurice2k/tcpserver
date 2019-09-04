@@ -14,14 +14,14 @@ import (
 )
 
 func main() {
-	var port int
+	var listenAddr string
 	var loops int
 	var udp bool
 	var trace bool
 	var reuseport bool
 	var stdlib bool
 
-	flag.IntVar(&port, "port", 5000, "server port")
+	flag.StringVar(&listenAddr, "listen", "127.0.0.1:8000", "server listen addr")
 	flag.BoolVar(&udp, "udp", false, "listen on udp")
 	flag.BoolVar(&reuseport, "reuseport", false, "reuseport (SO_REUSEPORT)")
 	flag.BoolVar(&trace, "trace", false, "print packets to console")
@@ -32,7 +32,7 @@ func main() {
 	var events evio.Events
 	events.NumLoops = loops
 	events.Serving = func(srv evio.Server) (action evio.Action) {
-		log.Printf("echo server started on port %d (loops: %d)", port, srv.NumLoops)
+		log.Printf("echo server started on %s (loops: %d)", listenAddr, srv.NumLoops)
 		if reuseport {
 			log.Printf("reuseport")
 		}
@@ -55,5 +55,5 @@ func main() {
 	if stdlib {
 		scheme += "-net"
 	}
-	log.Fatal(evio.Serve(events, fmt.Sprintf("%s://:%d?reuseport=%t", scheme, port, reuseport)))
+	log.Fatal(evio.Serve(events, fmt.Sprintf("%s://%s?reuseport=%t", scheme, listenAddr, reuseport)))
 }

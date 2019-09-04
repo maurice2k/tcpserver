@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-var port int
+var listenAddr string
 var sleep int
 var keepAlive bool
 var aaaa int
@@ -26,7 +26,7 @@ func main() {
 	tfMap[true] = "on"
 	tfMap[false] = "off"
 
-	flag.IntVar(&port, "port", 8000, "server port")
+	flag.StringVar(&listenAddr, "listen", "127.0.0.1:8000", "server listen addr")
 	flag.IntVar(&aaaa, "aaaa", 0, "aaaaa.... (default output is 'Hello World')")
 	flag.BoolVar(&keepAlive, "keepalive", true, "use HTTP Keep-Alive")
 	flag.BoolVar(&sha, "sha", false, "output sha256 instead of plain response")
@@ -38,8 +38,6 @@ func main() {
 	} else {
 		res = "Hello World!\r\n"
 	}
-
-	listenAddr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	fmt.Printf("Running http server on %s with GOMAXPROCS=%d\n", listenAddr, runtime.GOMAXPROCS(0))
 	fmt.Printf(" - keepalive: %s\n", tfMap[keepAlive])
