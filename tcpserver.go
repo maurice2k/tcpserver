@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -180,10 +181,51 @@ func (s *Server) Serve() error {
 	if s.listener == nil {
 		return fmt.Errorf("no valid listener found; call Listen() or ListenTLS() first")
 	}
+	goMaxProcs := runtime.GOMAXPROCS(0)
+
 	var connWaitGroup sync.WaitGroup
+	errChan := make(chan error, goMaxProcs)
+
+	for i := 0; i < goMaxProcs; i++ {
+		go func() {
+			errChan <- s.acceptLoop(&connWaitGroup)
+		}()
+	}
+
+	for i := 0; i < goMaxProcs; i++ {
+		err := <-errChan
+		if err != nil {
+			return err
+		}
+	}
+
+	if s.activeConnections == 0 {
+		return nil
+	}
+
+	if s.shutdownDeadline.IsZero() {
+		// just wait for all connections to be closed
+		connWaitGroup.Wait()
+
+	} else {
+		diff := s.shutdownDeadline.Sub(time.Now())
+		if diff > 0 {
+			// wait specified time for still active connections to be closed
+			time.Sleep(diff)
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) acceptLoop(connWaitGroup *sync.WaitGroup) error {
 	var tempDelay time.Duration
 
 	for {
+		if s.maxAcceptConnections > 0 && s.acceptedConnections >= s.maxAcceptConnections {
+			s.Shutdown(0)
+		}
+
 		if s.shutdown {
 			_ = s.listener.Close()
 			break
@@ -225,9 +267,19 @@ func (s *Server) Serve() error {
 		}
 
 		tempDelay = 0
+
+		newAcceptedConns := atomic.AddInt64(&s.acceptedConnections, 1)
+		if s.maxAcceptConnections > 0 && newAcceptedConns > s.maxAcceptConnections {
+			// We have accepted too much connections which might happen due to
+			// the fact that we use multiple accept loops without locking.
+			// In this case we just close the connection (we shouldn't have accepted
+			// in the first place) and continue for shutting down the server.
+			continue
+		}
+
 		connWaitGroup.Add(1)
 		atomic.AddInt32(&s.activeConnections, 1)
-		s.acceptedConnections++
+
 		go func() {
 			myConn := &Connection{
 				Conn:   conn.(*net.TCPConn),
@@ -239,32 +291,10 @@ func (s *Server) Serve() error {
 			connWaitGroup.Done()
 			atomic.AddInt32(&s.activeConnections, -1)
 		}()
-
-		if s.maxAcceptConnections > 0 && s.acceptedConnections >= s.maxAcceptConnections {
-			s.Shutdown(0)
-			break
-		}
-
 	}
-
-	if s.activeConnections == 0 {
-		return nil
-	}
-
-	if s.shutdownDeadline.IsZero() {
-		// just wait for all connections to be closed
-		connWaitGroup.Wait()
-
-	} else {
-		diff := s.shutdownDeadline.Sub(time.Now())
-		if diff > 0 {
-			// wait specified time for still active connections to be closed
-			time.Sleep(diff)
-		}
-	}
-
 	return nil
 }
+
 
 // Sets request handler function
 func (s *Server) SetRequestHandler(f RequestHandlerFunc) {

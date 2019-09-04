@@ -52,11 +52,11 @@ func main() {
 		SocketDeferAccept: false,
 	})
 	server.SetRequestHandler(requestHandler)
+	server.SetMaxAcceptConnections(2)
 	err := server.Listen()
 	if err != nil {
 		panic("Error listening on interface: " + err.Error())
 	}
-
 	err = server.Serve()
 	if err != nil {
 		panic("Error serving: " + err.Error())
