@@ -1,5 +1,18 @@
 #!/bin/bash
 
+# apt install gnuplot git mc screen pv
+# cd /opt
+# wget https://github.com/codesenberg/bombardier/releases/download/v1.2.4/bombardier-linux-amd64 ; chmod +x /opt/bombardier-linux-amd64
+# wget https://dl.google.com/go/go1.12.9.linux-amd64.tar.gz ; tar xzf go1.12.*tar.gz
+# echo "export PATH=/opt/go/bin:$PATH" >> ~/.profile
+# echo "export GOROOT=/opt/go" >> ~/.profile
+# source ~/.profile
+# cd ~/
+# git clone git@github.com:maurice2k/tcpserver.git
+# cd tcpserver/benchmark
+# bash benchmark.sh
+
+
 bombardier='/opt/bombardier-linux-amd64'
 
 cpus=`grep ^processor /proc/cpuinfo |wc -l`
@@ -125,7 +138,7 @@ echo ""
 plot_results "test05"
 
 
-### TEST #5, 1024 byte, keepalive on, sleep 1 ms
+### TEST #6, 1024 byte, keepalive on, sleep 1 ms
 
 test_http_server 'evio-http-server/main.go' '-keepalive=1 -port=8080 -aaaa=1024 -sleep=1 -loops=`echo $GOMAXPROCS`'
 results_evio=("${results[@]}")
