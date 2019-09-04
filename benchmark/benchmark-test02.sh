@@ -16,7 +16,7 @@
 bombardier='/opt/bombardier-linux-amd64'
 
 cpus=`grep ^processor /proc/cpuinfo |wc -l`
-cpus=12
+cpus=16
 
 run_server() {
     GOMAXPROCS=$1
@@ -52,7 +52,7 @@ test_http_server() {
             exit
         fi
 
-        results+=(`$bombardier -c 50 -d 2s $3 --fasthttp |tee /dev/tty |grep -o 'Reqs/sec.*' |awk '{print $2}'`)
+        results+=(`$bombardier -c 50 -d 10s $3 --fasthttp |tee /dev/tty |grep -o 'Reqs/sec.*' |awk '{print $2}'`)
 
         kill_server
     done
