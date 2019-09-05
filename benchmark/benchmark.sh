@@ -62,10 +62,10 @@ test_http_server() {
 }
 
 plot_results() {
-    echo "GOMAXPROCS evio tcpserver" >$1-results.dat
+    echo "GOMAXPROCS evio fasthttp tcpserver" >$1-results.dat
     for ((i=0; i<$cpus; i++))
     do
-        echo "$(($i+1)) ${results_evio[$i]} ${results_tcpserver[$i]}" >>$1-results.dat
+        echo "$(($i+1)) ${results_evio[$i]} ${results_fasthttp[$i]} ${results_tcpserver[$i]}" >>$1-results.dat
     done
 
     gnuplot -e "results='$1-results.dat'" plotter.txt
@@ -79,7 +79,11 @@ test_http_server 'evio-http-server/main.go' '-keepalive=1 -listen=127.0.0.10:808
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.11:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.11:8080/'
+test_http_server 'fasthttp-http-server/main.go' '-keepalive=1 -listen=127.0.0.11:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.11:8080/'
+results_fasthttp=("${results[@]}")
+echo ""
+
+test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.12:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.12:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 
@@ -92,7 +96,11 @@ test_http_server 'evio-http-server/main.go' '-keepalive=0 -listen=127.0.0.20:808
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=0 -listen=127.0.0.21:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.21:8080/'
+test_http_server 'fasthttp-http-server/main.go' '-keepalive=0 -listen=127.0.0.21:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.21:8080/'
+results_fasthttp=("${results[@]}")
+echo ""
+
+test_http_server '../examples/http-server/main.go' '-keepalive=0 -listen=127.0.0.22:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.22:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 
@@ -105,7 +113,11 @@ test_http_server 'evio-http-server/main.go' '-keepalive=1 -listen=127.0.0.30:808
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.31:8080 -aaaa=1024 -sha -sleep=0' 'http://127.0.0.31:8080/'
+test_http_server 'fasthttp-http-server/main.go' '-keepalive=1 -listen=127.0.0.31:8080 -aaaa=1024 -sha -sleep=0' 'http://127.0.0.31:8080/'
+results_fasthttp=("${results[@]}")
+echo ""
+
+test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.32:8080 -aaaa=1024 -sha -sleep=0' 'http://127.0.0.32:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 
@@ -118,7 +130,11 @@ test_http_server 'evio-http-server/main.go' '-keepalive=0 -listen=127.0.0.40:808
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=0 -listen=127.0.0.41:8080 -aaaa=1024 -sha -sleep=0' 'http://127.0.0.41:8080/'
+test_http_server 'fasthttp-http-server/main.go' '-keepalive=0 -listen=127.0.0.41:8080 -aaaa=1024 -sha -sleep=0' 'http://127.0.0.41:8080/'
+results_fasthttp=("${results[@]}")
+echo ""
+
+test_http_server '../examples/http-server/main.go' '-keepalive=0 -listen=127.0.0.42:8080 -aaaa=1024 -sha -sleep=0' 'http://127.0.0.42:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 
@@ -131,7 +147,11 @@ test_http_server 'evio-http-server/main.go' '-keepalive=1 -listen=127.0.0.50:808
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.51:8080 -aaaa=128 -sleep=1' 'http://127.0.0.51:8080/'
+test_http_server 'fasthttp-http-server/main.go' '-keepalive=1 -listen=127.0.0.51:8080 -aaaa=128 -sleep=1' 'http://127.0.0.51:8080/'
+results_fasthttp=("${results[@]}")
+echo ""
+
+test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.52:8080 -aaaa=128 -sleep=1' 'http://127.0.0.52:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 
@@ -144,7 +164,11 @@ test_http_server 'evio-http-server/main.go' '-keepalive=1 -listen=127.0.0.60:808
 results_evio=("${results[@]}")
 echo ""
 
-test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.61:8080 -aaaa=1024 -sleep=1' 'http://127.0.0.61:8080/'
+test_http_server 'fasthttp-http-server/main.go' '-keepalive=1 -listen=127.0.0.61:8080 -aaaa=1024 -sleep=1' 'http://127.0.0.61:8080/'
+results_fasthttp=("${results[@]}")
+echo ""
+
+test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.62:8080 -aaaa=1024 -sleep=1' 'http://127.0.0.62:8080/'
 results_tcpserver=("${results[@]}")
 echo ""
 

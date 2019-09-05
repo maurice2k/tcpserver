@@ -13,4 +13,4 @@ set style fill solid border -1
 set boxwidth 0.8
 set xtics rotate by -45 scale 0
 set key outside right above
-plot results using 2:xticlabels(1) ti col, '' u 3 ti col
+plot results using 2:xticlabels(1) ti col, '' u 3 ti col, '' u 4 ti col
