@@ -60,7 +60,7 @@ func main() {
 	var events evio.Events
 	events.NumLoops = loops
 	events.Serving = func(srv evio.Server) (action evio.Action) {
-		log.Printf("http server started on %s with GOMAXPROCS=%d (loops: %d)", listenAddr, runtime.GOMAXPROCS(0), srv.NumLoops)
+		log.Printf("http server using evio started on %s with GOMAXPROCS=%d (loops: %d)", listenAddr, runtime.GOMAXPROCS(0), srv.NumLoops)
 		if unixsocket != "" {
 			log.Printf("http server started at %s", unixsocket)
 		}

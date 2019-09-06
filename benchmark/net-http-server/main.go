@@ -5,10 +5,9 @@ import (
 	"encoding/hex"
 	"flag"
 	"log"
+	"net/http"
 	"strings"
 	"time"
-
-	"github.com/valyala/fasthttp"
 )
 
 func main() {
@@ -34,22 +33,27 @@ func main() {
 
 	resbytes := []byte(res)
 
-	log.Printf("http server using valyala/fasthttp starting on %s", listenAddr)
-	s := &fasthttp.Server{
-		Handler: func(c *fasthttp.RequestCtx) {
-
+	log.Printf("http server using plain golang net/* starting on %s", listenAddr)
+	s := &http.Server{
+		Addr: listenAddr,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if sha {
 				sha256sum := sha256.Sum256(resbytes)
-				c.WriteString(hex.EncodeToString(sha256sum[:]))
+				w.Write([]byte(hex.EncodeToString(sha256sum[:])))
 			} else {
-				c.Write(resbytes)
+				w.Write(resbytes)
 			}
 
 			if sleep > 0 {
 				time.Sleep(time.Millisecond * time.Duration(sleep))
 			}
-		},
-		DisableKeepalive: !keepAlive,
+		}),
 	}
-	s.ListenAndServe(listenAddr)
+
+	s.SetKeepAlivesEnabled(keepAlive)
+
+	err := s.ListenAndServe()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
