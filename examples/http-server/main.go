@@ -3,7 +3,9 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"reflect"
 	"runtime"
+	"unsafe"
 
 	"tcpserver"
 
@@ -20,6 +22,7 @@ var keepAlive bool
 var aaaa int
 var sha bool
 var res string
+var resbytes []byte
 
 func main() {
 	tfMap := make(map[bool]string)
@@ -38,6 +41,8 @@ func main() {
 	} else {
 		res = "Hello World!\r\n"
 	}
+
+	resbytes = []byte(res)
 
 	fmt.Printf("Running http server on %s with GOMAXPROCS=%d\n", listenAddr, runtime.GOMAXPROCS(0))
 	fmt.Printf(" - keepalive: %s\n", tfMap[keepAlive])
@@ -70,8 +75,9 @@ type request struct {
 }
 
 func requestHandler(conn *tcpserver.Connection) {
-	buf := make([]byte, 1024)
-	var data, out []byte
+	buf := make([]byte, 2048)
+	out := make([]byte, 0, 2048)
+	data := make([]byte, 0, 2048)
 	var req request
 	for {
 		n, err := conn.Read(buf)
@@ -82,33 +88,32 @@ func requestHandler(conn *tcpserver.Connection) {
 		leftover, err := parsereq(data, &req)
 		if err != nil {
 			// bad thing happened
-			out = appendresp(out, "500 Error", "", err.Error()+"\n")
+			out = appendresp(out, "500 Error", "", []byte(err.Error()+"\n"))
 			break
 		} else if len(leftover) == len(data) {
 			// request not ready, yet
 			continue
 		}
 		// handle the request
-		req.remoteAddr = conn.RemoteAddr().String()
-
 		if sha {
-			sha256sum := sha256.Sum256([]byte(res))
-			out = appendresp(out, "200 OK", "", hex.EncodeToString(sha256sum[:]))
+			sha256sum := sha256.Sum256(resbytes)
+			out = appendresp(out, "200 OK", "", []byte(hex.EncodeToString(sha256sum[:])))
 		} else {
-			out = appendresp(out, "200 OK", "", res)
+			out = appendresp(out, "200 OK", "", resbytes)
 		}
 
 		if sleep > 0 {
 			time.Sleep(time.Millisecond * time.Duration(sleep))
 		}
+
 		conn.Write(out)
 
 		if !keepAlive {
 			break
 		}
 
-		data = nil
-		out = nil
+		data = data[0:0]
+		out = out[0:0]
 	}
 
 	return
@@ -117,12 +122,13 @@ func requestHandler(conn *tcpserver.Connection) {
 // appendresp will append a valid http response to the provide bytes.
 // The status param should be the code plus text such as "200 OK".
 // The head parameter should be a series of lines ending with "\r\n" or empty.
-func appendresp(b []byte, status, head, body string) []byte {
+func appendresp(b []byte, status, head string, body []byte) []byte {
 	b = append(b, "HTTP/1.1"...)
 	b = append(b, ' ')
 	b = append(b, status...)
 	b = append(b, '\r', '\n')
-	b = append(b, "Server: tsrv\r\n"...)
+	b = append(b, "Server: tsrv"...)
+	b = append(b, '\r', '\n')
 	if !keepAlive {
 		b = append(b, "Connection: close\r\n"...)
 	}
@@ -208,4 +214,27 @@ func parsereq(data []byte, req *request) (leftover []byte, err error) {
 	}
 	// not enough data
 	return data, nil
+}
+
+// b2s converts byte slice to a string without memory allocation.
+// See https://groups.google.com/forum/#!msg/Golang-Nuts/ENgbUzYvCuU/90yGx7GUAgAJ .
+//
+// Note it may break if string and/or slice header will change
+// in the future go versions.
+func b2s(b []byte) string {
+	return *(*string)(unsafe.Pointer(&b))
+}
+
+// s2b converts string to a byte slice without memory allocation.
+//
+// Note it may break if string and/or slice header will change
+// in the future go versions.
+func s2b(s string) []byte {
+	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
+	bh := reflect.SliceHeader{
+		Data: sh.Data,
+		Len:  sh.Len,
+		Cap:  sh.Len,
+	}
+	return *(*[]byte)(unsafe.Pointer(&bh))
 }

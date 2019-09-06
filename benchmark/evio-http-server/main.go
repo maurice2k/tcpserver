@@ -19,6 +19,7 @@ import (
 )
 
 var res string
+var resbytes []byte
 
 type request struct {
 	proto, method string
@@ -53,6 +54,8 @@ func main() {
 	} else {
 		res = "Hello World!\r\n"
 	}
+
+	resbytes = []byte(res)
 
 	var events evio.Events
 	events.NumLoops = loops
@@ -90,7 +93,7 @@ func main() {
 			leftover, err := parsereq(data, &req)
 			if err != nil {
 				// bad thing happened
-				out = appendresp(out, "500 Error", "", err.Error()+"\n")
+				out = appendresp(out, "500 Error", "", []byte(err.Error()+"\n"))
 				action = evio.Close
 				break
 			} else if len(leftover) == len(data) {
@@ -98,13 +101,12 @@ func main() {
 				break
 			}
 			// handle the request
-			req.remoteAddr = c.RemoteAddr().String()
 
 			if sha {
-				sha256sum := sha256.Sum256([]byte(res))
-				out = appendresp(out, "200 OK", "", hex.EncodeToString(sha256sum[:]))
+				sha256sum := sha256.Sum256(resbytes)
+				out = appendresp(out, "200 OK", "", []byte(hex.EncodeToString(sha256sum[:])))
 			} else {
-				out = appendresp(out, "200 OK", "", res)
+				out = appendresp(out, "200 OK", "", resbytes)
 			}
 
 			data = leftover
@@ -135,12 +137,13 @@ func main() {
 // appendresp will append a valid http response to the provide bytes.
 // The status param should be the code plus text such as "200 OK".
 // The head parameter should be a series of lines ending with "\r\n" or empty.
-func appendresp(b []byte, status, head, body string) []byte {
+func appendresp(b []byte, status, head string, body []byte) []byte {
 	b = append(b, "HTTP/1.1"...)
 	b = append(b, ' ')
 	b = append(b, status...)
 	b = append(b, '\r', '\n')
-	b = append(b, "Server: evio\r\n"...)
+	b = append(b, "Server: evio"...)
+	b = append(b, '\r', '\n')
 	if !keepAlive {
 		b = append(b, "Connection: close\r\n"...)
 	}
