@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/tidwall/evio"
 )
@@ -167,7 +168,7 @@ func appendresp(b []byte, status, head string, body []byte) []byte {
 // waits for the entire payload to be buffered before returning a
 // valid request.
 func parsereq(data []byte, req *request) (leftover []byte, err error) {
-	sdata := string(data)
+	sdata := data
 	var i, s int
 	var top string
 	var clen int
@@ -175,20 +176,20 @@ func parsereq(data []byte, req *request) (leftover []byte, err error) {
 	// method, path, proto line
 	for ; i < len(sdata); i++ {
 		if sdata[i] == ' ' {
-			req.method = sdata[s:i]
+			req.method = b2s(sdata[s:i])
 			for i, s = i+1, i+1; i < len(sdata); i++ {
 				if sdata[i] == '?' && q == -1 {
 					q = i - s
 				} else if sdata[i] == ' ' {
 					if q != -1 {
-						req.path = sdata[s:q]
+						req.path = b2s(sdata[s:q])
 						req.query = req.path[q+1 : i]
 					} else {
-						req.path = sdata[s:i]
+						req.path = b2s(sdata[s:i])
 					}
 					for i, s = i+1, i+1; i < len(sdata); i++ {
 						if sdata[i] == '\n' && sdata[i-1] == '\r' {
-							req.proto = sdata[s:i]
+							req.proto = b2s(sdata[s:i])
 							i, s = i+1, i+1
 							break
 						}
@@ -202,19 +203,19 @@ func parsereq(data []byte, req *request) (leftover []byte, err error) {
 	if req.proto == "" {
 		return data, fmt.Errorf("malformed request")
 	}
-	top = sdata[:s]
+	top = b2s(sdata[:s])
 	for ; i < len(sdata); i++ {
 		if i > 1 && sdata[i] == '\n' && sdata[i-1] == '\r' {
-			line := sdata[s : i-1]
+			line := b2s(sdata[s : i-1])
 			s = i + 1
 			if line == "" {
-				req.head = sdata[len(top)+2 : i+1]
+				req.head = b2s(sdata[len(top)+2 : i+1])
 				i++
 				if clen > 0 {
 					if len(sdata[i:]) < clen {
 						break
 					}
-					req.body = sdata[i : i+clen]
+					req.body = b2s(sdata[i : i+clen])
 					i += clen
 				}
 				return data[i:], nil
@@ -229,4 +230,13 @@ func parsereq(data []byte, req *request) (leftover []byte, err error) {
 	}
 	// not enough data
 	return data, nil
+}
+
+// b2s converts byte slice to a string without memory allocation.
+// See https://groups.google.com/forum/#!msg/Golang-Nuts/ENgbUzYvCuU/90yGx7GUAgAJ .
+//
+// Note it may break if string and/or slice header will change
+// in the future go versions.
+func b2s(b []byte) string {
+	return *(*string)(unsafe.Pointer(&b))
 }
