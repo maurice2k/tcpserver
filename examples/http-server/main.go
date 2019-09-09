@@ -80,7 +80,7 @@ func requestHandler(conn *tcpserver.Connection) {
 	data := make([]byte, 0, 2048)
 	var req request
 	for {
-		n, err := conn.Read(buf)
+		n, err := conn.Conn.Read(buf)
 		if err != nil {
 			break
 		}
@@ -106,7 +106,7 @@ func requestHandler(conn *tcpserver.Connection) {
 			time.Sleep(time.Millisecond * time.Duration(sleep))
 		}
 
-		conn.Write(out)
+		conn.Conn.Write(out)
 
 		if !keepAlive {
 			break

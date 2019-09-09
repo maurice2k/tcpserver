@@ -34,6 +34,8 @@ then
     duration=$DURATION
 fi
 
+## kill every process that matches "test_http_server"
+ps a |grep "[t]est_http_server" |awk '{print $1}' |xargs -I{} kill -9 {}
 
 run_server() {
     GOMAXPROCS=$1
