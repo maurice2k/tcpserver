@@ -74,13 +74,16 @@ type request struct {
 	remoteAddr    string
 }
 
+var status200Ok = []byte("200 OK")
+var status500Error = []byte("500 Error")
+
 func requestHandler(conn *tcpserver.Connection) {
 	buf := make([]byte, 2048)
 	out := make([]byte, 0, 2048)
 	data := make([]byte, 0, 2048)
 	var req request
 	for {
-		n, err := conn.Conn.Read(buf)
+		n, err := conn.Read(buf)
 		if err != nil {
 			break
 		}
@@ -88,7 +91,7 @@ func requestHandler(conn *tcpserver.Connection) {
 		leftover, err := parsereq(data, &req)
 		if err != nil {
 			// bad thing happened
-			out = appendresp(out, "500 Error", "", []byte(err.Error()+"\n"))
+			out = appendresp(out, status500Error, nil, []byte(err.Error()+"\n"))
 			break
 		} else if len(leftover) == len(data) {
 			// request not ready, yet
@@ -97,16 +100,16 @@ func requestHandler(conn *tcpserver.Connection) {
 		// handle the request
 		if sha {
 			sha256sum := sha256.Sum256(resbytes)
-			out = appendresp(out, "200 OK", "", []byte(hex.EncodeToString(sha256sum[:])))
+			out = appendresp(out, status200Ok, nil, []byte(hex.EncodeToString(sha256sum[:])))
 		} else {
-			out = appendresp(out, "200 OK", "", resbytes)
+			out = appendresp(out, status200Ok, nil, resbytes)
 		}
 
 		if sleep > 0 {
 			time.Sleep(time.Millisecond * time.Duration(sleep))
 		}
 
-		conn.Conn.Write(out)
+		conn.Write(out)
 
 		if !keepAlive {
 			break
@@ -119,29 +122,37 @@ func requestHandler(conn *tcpserver.Connection) {
 	return
 }
 
+var headerHTTP11 = []byte("HTTP/1.1")
+var headerDate = []byte("Date: ")
+var headerConnectionClose = []byte("Connection: close")
+var headerServerIdentity = []byte("Server: tsrv")
+var headerContentLength = []byte("Content-Length: ")
+var newLine = []byte("\r\n")
+
 // appendresp will append a valid http response to the provide bytes.
 // The status param should be the code plus text such as "200 OK".
 // The head parameter should be a series of lines ending with "\r\n" or empty.
-func appendresp(b []byte, status, head string, body []byte) []byte {
-	b = append(b, "HTTP/1.1"...)
+func appendresp(b []byte, status, head, body []byte) []byte {
+	b = append(b, headerHTTP11...)
 	b = append(b, ' ')
 	b = append(b, status...)
-	b = append(b, '\r', '\n')
-	b = append(b, "Server: tsrv"...)
-	b = append(b, '\r', '\n')
+	b = append(b, newLine...)
+	b = append(b, headerServerIdentity...)
+	b = append(b, newLine...)
 	if !keepAlive {
-		b = append(b, "Connection: close\r\n"...)
+		b = append(b, headerConnectionClose...)
+		b = append(b, newLine...)
 	}
-	b = append(b, "Date: "...)
+	b = append(b, headerDate...)
 	b = time.Now().AppendFormat(b, "Mon, 02 Jan 2006 15:04:05 GMT")
-	b = append(b, '\r', '\n')
+	b = append(b, newLine...)
 	if len(body) > 0 {
-		b = append(b, "Content-Length: "...)
+		b = append(b, headerContentLength...)
 		b = strconv.AppendInt(b, int64(len(body)), 10)
-		b = append(b, '\r', '\n')
+		b = append(b, newLine...)
 	}
 	b = append(b, head...)
-	b = append(b, '\r', '\n')
+	b = append(b, newLine...)
 	if len(body) > 0 {
 		b = append(b, body...)
 	}
