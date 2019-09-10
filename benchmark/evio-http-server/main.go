@@ -34,6 +34,9 @@ var keepAlive bool
 var sleep int
 var sha bool
 
+var status200Ok = []byte("200 OK")
+var status500Error = []byte("500 Error")
+
 func main() {
 	var loops int
 	var aaaa int
@@ -94,7 +97,7 @@ func main() {
 			leftover, err := parsereq(data, &req)
 			if err != nil {
 				// bad thing happened
-				out = appendresp(out, "500 Error", "", []byte(err.Error()+"\n"))
+				out = appendresp(out, status500Error, nil, []byte(err.Error()+"\n"))
 				action = evio.Close
 				break
 			} else if len(leftover) == len(data) {
@@ -105,9 +108,9 @@ func main() {
 
 			if sha {
 				sha256sum := sha256.Sum256(resbytes)
-				out = appendresp(out, "200 OK", "", []byte(hex.EncodeToString(sha256sum[:])))
+				out = appendresp(out, status200Ok, nil, []byte(hex.EncodeToString(sha256sum[:])))
 			} else {
-				out = appendresp(out, "200 OK", "", resbytes)
+				out = appendresp(out, status200Ok, nil, resbytes)
 			}
 
 			data = leftover

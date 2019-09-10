@@ -16,20 +16,20 @@
 bombardier='/opt/bombardier-linux-amd64'
 
 cpus=`grep ^processor /proc/cpuinfo |wc -l`
-conns=50
-duration=2   # 2 seconds
+conns=100
+duration=5   # 2 seconds
 
-if [ $CPUS -gt 0 ]
+if [[ -n $CPUS && $CPUS -gt 0 ]]
 then
     cpus=$CPUS
 fi
 
-if [ $CONNS -gt 0 ]
+if [[ -n $CONNS && $CONNS -gt 0 ]]
 then
     conns=$CONNS
 fi
 
-if [ $DURATION -gt 0 ]
+if [[ -n $DURATION && $DURATION -gt 0 ]]
 then
     duration=$DURATION
 fi
