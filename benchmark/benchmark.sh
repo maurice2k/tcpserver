@@ -17,7 +17,7 @@ bombardier='/opt/bombardier-linux-amd64'
 
 cpus=`grep ^processor /proc/cpuinfo |wc -l`
 conns=100
-duration=5   # 2 seconds
+duration=5   # duration of test in seconds
 
 if [[ -n $CPUS && $CPUS -gt 0 ]]
 then
