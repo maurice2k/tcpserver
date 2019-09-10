@@ -14,6 +14,8 @@ import (
 )
 
 type Server struct {
+	noCopy noCopy
+
 	listenAddr           *net.TCPAddr
 	listener             advancedListener
 	shutdown             bool
@@ -25,6 +27,7 @@ type Server struct {
 	acceptedConnections  int64
 	tlsConfig            *tls.Config
 	listenConfig         *ListenConfig
+	connWaitGroup        sync.WaitGroup
 }
 
 type Connection struct {
@@ -182,13 +185,15 @@ func (s *Server) Serve() error {
 		return fmt.Errorf("no valid listener found; call Listen() or ListenTLS() first")
 	}
 	goMaxProcs := runtime.GOMAXPROCS(0)
+	if goMaxProcs < 1 {
+		goMaxProcs = 1
+	}
 
-	var connWaitGroup sync.WaitGroup
 	errChan := make(chan error, goMaxProcs)
 
 	for i := 0; i < goMaxProcs; i++ {
 		go func() {
-			errChan <- s.acceptLoop(&connWaitGroup)
+			errChan <- s.acceptLoop()
 		}()
 	}
 
@@ -205,7 +210,7 @@ func (s *Server) Serve() error {
 
 	if s.shutdownDeadline.IsZero() {
 		// just wait for all connections to be closed
-		connWaitGroup.Wait()
+		s.connWaitGroup.Wait()
 
 	} else {
 		diff := s.shutdownDeadline.Sub(time.Now())
@@ -218,7 +223,7 @@ func (s *Server) Serve() error {
 	return nil
 }
 
-func (s *Server) acceptLoop(connWaitGroup *sync.WaitGroup) error {
+func (s *Server) acceptLoop() error {
 	var tempDelay time.Duration
 
 	for {
@@ -277,24 +282,25 @@ func (s *Server) acceptLoop(connWaitGroup *sync.WaitGroup) error {
 			continue
 		}
 
-		connWaitGroup.Add(1)
+		s.connWaitGroup.Add(1)
 		atomic.AddInt32(&s.activeConnections, 1)
-
-		go func() {
-			myConn := &Connection{
-				Conn:   conn.(*net.TCPConn),
-				server: s,
-				ts:     time.Now(),
-			}
-			s.requestHandler(myConn)
-			myConn.Close()
-			connWaitGroup.Done()
-			atomic.AddInt32(&s.activeConnections, -1)
-		}()
+		go s.serveConn(conn)
 	}
 	return nil
 }
 
+// Serve a single connection
+func (s *Server) serveConn(conn net.Conn) {
+	myConn := &Connection{
+		Conn:   conn,
+		server: s,
+		ts:     time.Now(),
+	}
+	s.requestHandler(myConn)
+	myConn.Close()
+	s.connWaitGroup.Done()
+	atomic.AddInt32(&s.activeConnections, -1)
+}
 
 // Sets request handler function
 func (s *Server) SetRequestHandler(f RequestHandlerFunc) {
@@ -364,3 +370,8 @@ func (conn *Connection) StartTLS(config *tls.Config) error {
 func IsIPv6Addr(addr *net.TCPAddr) bool {
 	return addr.IP.To4() == nil && len(addr.IP) == net.IPv6len
 }
+
+type noCopy struct{}
+
+func (*noCopy) Lock()   {}
+func (*noCopy) Unlock() {}

@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/valyala/fasthttp"
 	"tcpserver"
 
 	"flag"
@@ -53,7 +52,7 @@ func main() {
 
 	server, _ := tcpserver.NewServer(listenAddr)
 	server.SetListenConfig(&tcpserver.ListenConfig{
-		SocketReusePort:   true,
+		SocketReusePort:   false,
 		SocketFastOpen:    false,
 		SocketDeferAccept: false,
 	})
@@ -79,7 +78,7 @@ var status200Ok = []byte("200 OK")
 var status500Error = []byte("500 Error")
 
 func requestHandler(conn *tcpserver.Connection) {
-	fasthttp.ServeConn(conn, func(c *fasthttp.RequestCtx) {
+	/*	fasthttp.ServeConn(conn, func(c *fasthttp.RequestCtx) {
 
 		if sha {
 			sha256sum := sha256.Sum256(resbytes)
@@ -91,7 +90,7 @@ func requestHandler(conn *tcpserver.Connection) {
 		if sleep > 0 {
 			time.Sleep(time.Millisecond * time.Duration(sleep))
 		}
-	})/*
+	})/**/
 
 	buf := make([]byte, 2048)
 	out := make([]byte, 0, 2048)
@@ -136,7 +135,7 @@ func requestHandler(conn *tcpserver.Connection) {
 		data = data[0:0]
 		out = out[0:0]
 	}
-*/
+//*/
 	return
 }
 
