@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gammazero/workerpool"
 )
 
 type Server struct {
@@ -28,6 +30,8 @@ type Server struct {
 	tlsConfig            *tls.Config
 	listenConfig         *ListenConfig
 	connWaitGroup        sync.WaitGroup
+
+	wp *workerpool.WorkerPool
 }
 
 type Connection struct {
@@ -189,6 +193,8 @@ func (s *Server) Serve() error {
 		goMaxProcs = 1
 	}
 
+	s.wp = workerpool.New(10000)
+
 	errChan := make(chan error, goMaxProcs)
 
 	for i := 0; i < goMaxProcs; i++ {
@@ -284,7 +290,8 @@ func (s *Server) acceptLoop() error {
 
 		s.connWaitGroup.Add(1)
 		atomic.AddInt32(&s.activeConnections, 1)
-		go s.serveConn(conn)
+		//go s.serveConn(conn)
+		s.wp.Submit(func() { s.serveConn(conn) })
 	}
 	return nil
 }
