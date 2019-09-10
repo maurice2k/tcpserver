@@ -135,29 +135,37 @@ func main() {
 	log.Fatal(evio.Serve(events, addrs...))
 }
 
+var headerHTTP11 = []byte("HTTP/1.1")
+var headerDate = []byte("Date: ")
+var headerConnectionClose = []byte("Connection: close")
+var headerServerIdentity = []byte("Server: tsrv")
+var headerContentLength = []byte("Content-Length: ")
+var newLine = []byte("\r\n")
+
 // appendresp will append a valid http response to the provide bytes.
 // The status param should be the code plus text such as "200 OK".
 // The head parameter should be a series of lines ending with "\r\n" or empty.
-func appendresp(b []byte, status, head string, body []byte) []byte {
-	b = append(b, "HTTP/1.1"...)
+func appendresp(b []byte, status, head, body []byte) []byte {
+	b = append(b, headerHTTP11...)
 	b = append(b, ' ')
 	b = append(b, status...)
-	b = append(b, '\r', '\n')
-	b = append(b, "Server: evio"...)
-	b = append(b, '\r', '\n')
+	b = append(b, newLine...)
+	b = append(b, headerServerIdentity...)
+	b = append(b, newLine...)
 	if !keepAlive {
-		b = append(b, "Connection: close\r\n"...)
+		b = append(b, headerConnectionClose...)
+		b = append(b, newLine...)
 	}
-	b = append(b, "Date: "...)
+	b = append(b, headerDate...)
 	b = time.Now().AppendFormat(b, "Mon, 02 Jan 2006 15:04:05 GMT")
-	b = append(b, '\r', '\n')
+	b = append(b, newLine...)
 	if len(body) > 0 {
-		b = append(b, "Content-Length: "...)
+		b = append(b, headerContentLength...)
 		b = strconv.AppendInt(b, int64(len(body)), 10)
-		b = append(b, '\r', '\n')
+		b = append(b, newLine...)
 	}
 	b = append(b, head...)
-	b = append(b, '\r', '\n')
+	b = append(b, newLine...)
 	if len(body) > 0 {
 		b = append(b, body...)
 	}
