@@ -29,7 +29,6 @@ type Server struct {
 	listenConfig         *ListenConfig
 	connWaitGroup        sync.WaitGroup
 	connStructPool       sync.Pool
-	connChans			 [120]chan net.Conn
 }
 
 type Connection struct {
@@ -194,13 +193,9 @@ func (s *Server) Serve() error {
 	errChan := make(chan error, goMaxProcs)
 
 	for i := 0; i < goMaxProcs; i++ {
-		s.connChans[i] = make(chan net.Conn, 1000)
-
 		go func(id int) {
 			errChan <- s.acceptLoop(id)
 		}(i)
-
-		go s.serveFromChan(i)
 	}
 
 	for i := 0; i < goMaxProcs; i++ {
@@ -232,7 +227,6 @@ func (s *Server) Serve() error {
 func (s *Server) acceptLoop(id int) error {
 	var tempDelay time.Duration
 
-	//fmt.Println("acceptLoop started #", id)
 	for {
 		if s.maxAcceptConnections > 0 && s.acceptedConnections >= s.maxAcceptConnections {
 			s.Shutdown(0)
@@ -289,10 +283,7 @@ func (s *Server) acceptLoop(id int) error {
 			continue
 		}
 
-		//conn.Write([]byte("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 11\r\n\r\nHELLO WORLD"))
-		//conn.Close()
-		//go s.serveConn(conn)
-		s.connChans[id] <- conn
+		go s.serveConn(conn)
 	}
 	return nil
 }
@@ -326,16 +317,6 @@ func (s *Server) serveConn(conn net.Conn) {
 	s.connWaitGroup.Done()
 	atomic.AddInt32(&s.activeConnections, -1)
 }
-
-// Serve a single connection
-func (s *Server) serveFromChan(id int) {
-	//fmt.Println("serveFromChan started #", id)
-	for conn := range s.connChans[id] {
-		//fmt.Println(id)
-		s.serveConn(conn)
-	}
-}
-
 
 // Sets request handler function
 func (s *Server) SetRequestHandler(f RequestHandlerFunc) {

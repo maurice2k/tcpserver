@@ -78,7 +78,7 @@ var status200Ok = []byte("200 OK")
 var status500Error = []byte("500 Error")
 
 func requestHandler(conn *tcpserver.Connection) {
-	/*	fasthttp.ServeConn(conn, func(c *fasthttp.RequestCtx) {
+/*		fasthttp.ServeConn(conn, func(c *fasthttp.RequestCtx) {
 
 		if sha {
 			sha256sum := sha256.Sum256(resbytes)
@@ -103,6 +103,7 @@ func requestHandler(conn *tcpserver.Connection) {
 			break
 		}
 		data = append(data, buf[0:n]...)
+
 		leftover, err = parsereq(data, &req)
 		if err != nil {
 			// bad thing happened
@@ -114,6 +115,7 @@ func requestHandler(conn *tcpserver.Connection) {
 			// request not ready, yet
 			continue
 		}
+
 		// handle the request
 		if sha {
 			sha256sum := sha256.Sum256(resbytes)
