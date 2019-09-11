@@ -201,7 +201,6 @@ func (s *Server) Serve() error {
 		}(i)
 
 		go s.serveFromChan(i)
-		go s.serveFromChan(i)
 	}
 
 	for i := 0; i < goMaxProcs; i++ {
