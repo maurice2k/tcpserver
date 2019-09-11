@@ -11,8 +11,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/gammazero/workerpool"
 )
 
 type Server struct {
@@ -30,8 +28,8 @@ type Server struct {
 	tlsConfig            *tls.Config
 	listenConfig         *ListenConfig
 	connWaitGroup        sync.WaitGroup
-
-	wp *workerpool.WorkerPool
+	connStructPool       sync.Pool
+	connChans			 [120]chan net.Conn
 }
 
 type Connection struct {
@@ -193,14 +191,17 @@ func (s *Server) Serve() error {
 		goMaxProcs = 1
 	}
 
-	s.wp = workerpool.New(10000)
-
 	errChan := make(chan error, goMaxProcs)
 
 	for i := 0; i < goMaxProcs; i++ {
-		go func() {
-			errChan <- s.acceptLoop()
-		}()
+		s.connChans[i] = make(chan net.Conn, 1000)
+
+		go func(id int) {
+			errChan <- s.acceptLoop(id)
+		}(i)
+
+		go s.serveFromChan(i)
+		go s.serveFromChan(i)
 	}
 
 	for i := 0; i < goMaxProcs; i++ {
@@ -229,9 +230,10 @@ func (s *Server) Serve() error {
 	return nil
 }
 
-func (s *Server) acceptLoop() error {
+func (s *Server) acceptLoop(id int) error {
 	var tempDelay time.Duration
 
+	//fmt.Println("acceptLoop started #", id)
 	for {
 		if s.maxAcceptConnections > 0 && s.acceptedConnections >= s.maxAcceptConnections {
 			s.Shutdown(0)
@@ -288,26 +290,53 @@ func (s *Server) acceptLoop() error {
 			continue
 		}
 
-		s.connWaitGroup.Add(1)
-		atomic.AddInt32(&s.activeConnections, 1)
+		//conn.Write([]byte("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 11\r\n\r\nHELLO WORLD"))
+		//conn.Close()
 		//go s.serveConn(conn)
-		s.wp.Submit(func() { s.serveConn(conn) })
+		s.connChans[id] <- conn
 	}
 	return nil
 }
 
 // Serve a single connection
 func (s *Server) serveConn(conn net.Conn) {
-	myConn := &Connection{
-		Conn:   conn,
-		server: s,
-		ts:     time.Now(),
+	defer conn.Close()
+	s.connWaitGroup.Add(1)
+	atomic.AddInt32(&s.activeConnections, 1)
+
+	var myConn *Connection
+	v := s.connStructPool.Get()
+	if v == nil {
+		myConn = &Connection{
+			Conn:   conn,
+			server: s,
+			ts:     time.Now(),
+		}
+	} else {
+		myConn = v.(*Connection)
+		myConn.Conn = conn
+		myConn.ts = time.Now()
 	}
+
 	s.requestHandler(myConn)
-	myConn.Close()
+
+	myConn.ctx = nil
+	myConn.Conn = nil
+	s.connStructPool.Put(myConn)
+
 	s.connWaitGroup.Done()
 	atomic.AddInt32(&s.activeConnections, -1)
 }
+
+// Serve a single connection
+func (s *Server) serveFromChan(id int) {
+	//fmt.Println("serveFromChan started #", id)
+	for conn := range s.connChans[id] {
+		//fmt.Println(id)
+		s.serveConn(conn)
+	}
+}
+
 
 // Sets request handler function
 func (s *Server) SetRequestHandler(f RequestHandlerFunc) {
