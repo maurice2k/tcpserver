@@ -1,12 +1,12 @@
 package main
 
 import (
+	"github.com/maurice2k/tcpserver"
+
 	"flag"
 	"fmt"
 	"io"
 	"net"
-
-	"tcpserver"
 )
 
 var listenAddr string
