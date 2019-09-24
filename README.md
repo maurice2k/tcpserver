@@ -13,10 +13,20 @@ Memory allocation in hot paths are reduced to a minimum using golang's `sync.Poo
 
 A small performance increase is still possible by using a go routine pool instead of spawning a new go routine for each connection. 
 
+## Example
+
+```golang
+server, err := tcpserver.NewServer("127.0.0.1:5000")
+
+server.SetRequestHandler(requestHandler)
+server.Listen()
+server.Serve()
+```
+
 
 ## Benchmarks
 
-Never ever trust benchmarks. 
+Benchmarks are always problematic
 
 
 ### Echo server

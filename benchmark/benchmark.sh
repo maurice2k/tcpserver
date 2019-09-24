@@ -34,6 +34,12 @@ then
     duration=$DURATION
 fi
 
+if [[ -n $DURATION && $DURATION -gt 0 ]]
+then
+    duration=$DURATION
+fi
+
+
 ## kill every process that matches "test_http_server"
 ps a |grep "[t]est_http_server" |awk '{print $1}' |xargs -I{} kill -9 {}
 
@@ -59,8 +65,14 @@ test_http_server() {
     echo "Building $1"
     go build -o test_http_server $1
 
+    start_cpu=1
+    if [[ -n $ONLYGIVENCPUS && $ONLYGIVENCPUS -eq 1 ]]
+    then
+        start_cpu=$cpus
+    fi
+
     echo "Testing with up to $cpus CPUs"
-    for ((i=1; i<=$cpus; i++))
+    for ((i=$start_cpu; i<=$cpus; i++))
     do
 
         for ((j=0; j<3; j++))
@@ -91,10 +103,17 @@ test_http_server() {
 
 plot_results() {
     echo "GOMAXPROCS evio fasthttp net/http tcpserver" >$1-results.dat
-    for ((i=0; i<$cpus; i++))
-    do
-        echo "$(($i+1)) ${results_evio[$i]} ${results_fasthttp[$i]} ${results_net[$i]} ${results_tcpserver[$i]}" >>$1-results.dat
-    done
+
+    if [[ -n $ONLYGIVENCPUS && $ONLYGIVENCPUS -eq 1 ]]
+    then
+        echo "$cpus ${results_evio[0]} ${results_fasthttp[0]} ${results_net[0]} ${results_tcpserver[0]}" >>$1-results.dat
+    else
+        for ((i=0; i<$cpus; i++))
+        do
+            echo "$(($i+1)) ${results_evio[$i]} ${results_fasthttp[$i]} ${results_net[$i]} ${results_tcpserver[$i]}" >>$1-results.dat
+        done
+    fi
+
 
     gnuplot -e "results='$1-results.dat'" plotter.txt
     mv graph.png "$1-graph.png"
