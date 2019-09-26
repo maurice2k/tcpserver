@@ -125,23 +125,23 @@ plot_results() {
 run_test1() {
     echo "====[ Running test #1: HTTP returning 1024 byte, ${conns} concurrent connections, keepalive on ]===="
 
-    test_http_server 'net-http-server/main.go' '-keepalive=1 -listen=127.0.0.12:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.12:8080/'
+    test_http_server 'net-http-server/main.go' '-keepalive=1 -listen=127.0.0.10:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.10:8080/'
     results_net=("${results[@]}")
     echo ""
 
-    test_http_server 'evio-http-server/main.go' '-keepalive=1 -listen=127.0.0.10:8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.10:8080/'
+    test_http_server 'evio-http-server/main.go' '-keepalive=1 -listen=127.0.0.11:8080 -aaaa=1024 -sleep=0 -loops=-1' 'http://127.0.0.11:8080/'
     results_evio=("${results[@]}")
     echo ""
 
-    test_http_server 'gnet-http-server/main.go' '-keepalive=1 -listen=127.0.0.10:8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.10:8080/'
+    test_http_server 'gnet-http-server/main.go' '-keepalive=1 -listen=127.0.0.12:8080 -aaaa=1024 -sleep=0 -loops=-1' 'http://127.0.0.12:8080/'
     results_gnet=("${results[@]}")
     echo ""
 
-    test_http_server 'fasthttp-http-server/main.go' '-keepalive=1 -listen=127.0.0.11:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.11:8080/'
+    test_http_server 'fasthttp-http-server/main.go' '-keepalive=1 -listen=127.0.0.13:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.13:8080/'
     results_fasthttp=("${results[@]}")
     echo ""
 
-    test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.13:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.13:8080/'
+    test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.14:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.14:8080/'
     results_tcpserver=("${results[@]}")
     echo ""
 
@@ -154,19 +154,23 @@ run_test1() {
 run_test2() {
     echo "====[ Running test #2: HTTP returning 1024 byte, ${conns} concurrent connections, keepalive off ]===="
 
-    test_http_server 'evio-http-server/main.go' '-keepalive=0 -listen=127.0.0.20:8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.20:8080/'
-    results_evio=("${results[@]}")
-    echo ""
-
-    test_http_server 'fasthttp-http-server/main.go' '-keepalive=0 -listen=127.0.0.21:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.21:8080/'
-    results_fasthttp=("${results[@]}")
-    echo ""
-
-    test_http_server 'net-http-server/main.go' '-keepalive=0 -listen=127.0.0.22:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.22:8080/'
+    test_http_server 'net-http-server/main.go' '-keepalive=0 -listen=127.0.0.20:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.20:8080/'
     results_net=("${results[@]}")
     echo ""
 
-    test_http_server '../examples/http-server/main.go' '-keepalive=0 -listen=127.0.0.23:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.23:8080/'
+    test_http_server 'evio-http-server/main.go' '-keepalive=0 -listen=127.0.0.21:8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.21:8080/'
+    results_evio=("${results[@]}")
+    echo ""
+
+    test_http_server 'gnet-http-server/main.go' '-keepalive=0 -listen=127.0.0.22:8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.22:8080/'
+    results_gnet=("${results[@]}")
+    echo ""
+
+    test_http_server 'fasthttp-http-server/main.go' '-keepalive=0 -listen=127.0.0.23:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.23:8080/'
+    results_fasthttp=("${results[@]}")
+    echo ""
+
+    test_http_server '../examples/http-server/main.go' '-keepalive=0 -listen=127.0.0.24:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.24:8080/'
     results_tcpserver=("${results[@]}")
     echo ""
 
