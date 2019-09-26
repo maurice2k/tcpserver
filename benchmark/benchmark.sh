@@ -68,10 +68,12 @@ test_http_server() {
     start_cpu=1
     if [[ -n $ONLYGIVENCPUS && $ONLYGIVENCPUS -eq 1 ]]
     then
+        echo "Testing with exactly $cpus CPU(s)"
         start_cpu=$cpus
+    else
+        echo "Testing with up to $cpus CPUs"
     fi
 
-    echo "Testing with up to $cpus CPUs"
     for ((i=$start_cpu; i<=$cpus; i++))
     do
 
@@ -102,15 +104,15 @@ test_http_server() {
 }
 
 plot_results() {
-    echo "GOMAXPROCS evio fasthttp net/http tcpserver" >$1-results.dat
+    echo "GOMAXPROCS net/http evio gnet fasthttp tcpserver" >$1-results.dat
 
     if [[ -n $ONLYGIVENCPUS && $ONLYGIVENCPUS -eq 1 ]]
     then
-        echo "$cpus ${results_evio[0]} ${results_fasthttp[0]} ${results_net[0]} ${results_tcpserver[0]}" >>$1-results.dat
+        echo "$cpus ${results_net[0]} ${results_evio[0]} ${results_gnet[0]}${results_fasthttp[0]} ${results_tcpserver[0]}" >>$1-results.dat
     else
         for ((i=0; i<$cpus; i++))
         do
-            echo "$(($i+1)) ${results_evio[$i]} ${results_fasthttp[$i]} ${results_net[$i]} ${results_tcpserver[$i]}" >>$1-results.dat
+            echo "$(($i+1)) ${results_net[$i]} ${results_evio[$i]} ${results_gnet[$i]} ${results_fasthttp[$i]} ${results_tcpserver[$i]}" >>$1-results.dat
         done
     fi
 
@@ -123,16 +125,20 @@ plot_results() {
 run_test1() {
     echo "====[ Running test #1: HTTP returning 1024 byte, ${conns} concurrent connections, keepalive on ]===="
 
+    test_http_server 'net-http-server/main.go' '-keepalive=1 -listen=127.0.0.12:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.12:8080/'
+    results_net=("${results[@]}")
+    echo ""
+
     test_http_server 'evio-http-server/main.go' '-keepalive=1 -listen=127.0.0.10:8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.10:8080/'
     results_evio=("${results[@]}")
     echo ""
 
-    test_http_server 'fasthttp-http-server/main.go' '-keepalive=1 -listen=127.0.0.11:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.11:8080/'
-    results_fasthttp=("${results[@]}")
+    test_http_server 'gnet-http-server/main.go' '-keepalive=1 -listen=127.0.0.10:8080 -aaaa=1024 -sleep=0 -loops=`echo $GOMAXPROCS`' 'http://127.0.0.10:8080/'
+    results_gnet=("${results[@]}")
     echo ""
 
-    test_http_server 'net-http-server/main.go' '-keepalive=1 -listen=127.0.0.12:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.12:8080/'
-    results_net=("${results[@]}")
+    test_http_server 'fasthttp-http-server/main.go' '-keepalive=1 -listen=127.0.0.11:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.11:8080/'
+    results_fasthttp=("${results[@]}")
     echo ""
 
     test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.13:8080 -aaaa=1024 -sleep=0' 'http://127.0.0.13:8080/'
