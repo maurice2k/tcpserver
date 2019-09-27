@@ -1,6 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"io"
+
 	"github.com/maurice2k/tcpserver"
 
 	"crypto/sha256"
@@ -19,9 +25,15 @@ var listenAddr string
 var sleep int
 var keepAlive bool
 var aaaa int
+var aes128 bool
 var sha bool
 var res string
 var resbytes []byte
+
+var status200Ok = []byte("200 OK")
+var status500Error = []byte("500 Error")
+
+var aesKey = []byte("0123456789ABCDEF")
 
 func main() {
 	tfMap := make(map[bool]string)
@@ -31,6 +43,7 @@ func main() {
 	flag.StringVar(&listenAddr, "listen", "127.0.0.1:8000", "server listen addr")
 	flag.IntVar(&aaaa, "aaaa", 0, "aaaaa.... (default output is 'Hello World')")
 	flag.BoolVar(&keepAlive, "keepalive", true, "use HTTP Keep-Alive")
+	flag.BoolVar(&aes128, "aes128", false, "encrypt response with aes-128-cbc")
 	flag.BoolVar(&sha, "sha", false, "output sha256 instead of plain response")
 	flag.IntVar(&sleep, "sleep", 0, "sleep number of milliseconds per request")
 	flag.Parse()
@@ -47,6 +60,12 @@ func main() {
 	fmt.Printf(" - keepalive: %s\n", tfMap[keepAlive])
 	if sleep > 0 {
 		fmt.Printf(" - sleep ms per request: %d ms\n", sleep)
+	}
+	if aes128 {
+		fmt.Printf(" - encrypt response with aes-128-cbc\n")
+	}
+	if !aes128 && sha  {
+		fmt.Printf(" - output sha256 of reponse\n")
 	}
 
 	server, _ := tcpserver.NewServer(listenAddr)
@@ -72,9 +91,6 @@ type request struct {
 	head, body    string
 	remoteAddr    string
 }
-
-var status200Ok = []byte("200 OK")
-var status500Error = []byte("500 Error")
 
 func requestHandler(conn *tcpserver.Connection) {
 	/*		fasthttp.ServeConn(conn, func(c *fasthttp.RequestCtx) {
@@ -116,7 +132,10 @@ func requestHandler(conn *tcpserver.Connection) {
 		}
 
 		// handle the request
-		if sha {
+		if aes128 {
+			cryptedResbytes, _ := encryptCBC(resbytes, aesKey)
+			out = appendresp(out, status200Ok, nil, cryptedResbytes)
+		} else if sha {
 			sha256sum := sha256.Sum256(resbytes)
 			out = appendresp(out, status200Ok, nil, []byte(hex.EncodeToString(sha256sum[:])))
 		} else {
@@ -266,4 +285,34 @@ func s2b(s string) []byte {
 		Cap:  sh.Len,
 	}
 	return *(*[]byte)(unsafe.Pointer(&bh))
+}
+
+// Encrypts given cipher text (prepended with the IV) with AES-128 or AES-256
+// (depending on the length of the key)
+func encryptCBC(plainText, key []byte) (cipherText []byte, err error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	plainText = pad(aes.BlockSize, plainText)
+
+	cipherText = make([]byte, aes.BlockSize+len(plainText))
+	iv := cipherText[:aes.BlockSize]
+	_, err = io.ReadFull(rand.Reader, iv)
+	if err != nil {
+		return nil, err
+	}
+
+	mode := cipher.NewCBCEncrypter(block, iv)
+	mode.CryptBlocks(cipherText[aes.BlockSize:], plainText)
+
+	return cipherText, nil
+}
+
+// Adds PKCS#7 padding (variable block length <= 255 bytes)
+func pad(blockSize int, buf []byte) []byte {
+	padLen := blockSize - (len(buf) % blockSize)
+	padding := bytes.Repeat([]byte{byte(padLen)}, padLen)
+	return append(buf, padding...)
 }

@@ -5,10 +5,15 @@
 package main
 
 import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"runtime"
 	"strconv"
@@ -32,10 +37,13 @@ type request struct {
 var listenAddr string
 var keepAlive bool
 var sleep int
+var aes128 bool
 var sha bool
 
 var status200Ok = []byte("200 OK")
 var status500Error = []byte("500 Error")
+
+var aesKey = []byte("0123456789ABCDEF")
 
 func main() {
 	var loops int
@@ -49,6 +57,7 @@ func main() {
 	flag.BoolVar(&stdlib, "stdlib", false, "use stdlib")
 	flag.IntVar(&loops, "loops", 0, "num loops")
 	flag.BoolVar(&keepAlive, "keepalive", true, "use HTTP Keep-Alive")
+	flag.BoolVar(&aes128, "aes128", false, "encrypt response with aes-128-cbc")
 	flag.BoolVar(&sha, "sha", false, "output sha256 instead of plain response")
 	flag.IntVar(&sleep, "sleep", 0, "sleep number of milliseconds per request")
 	flag.Parse()
@@ -105,8 +114,10 @@ func main() {
 				break
 			}
 			// handle the request
-
-			if sha {
+			if aes128 {
+				cryptedResbytes, _ := encryptCBC(resbytes, aesKey)
+				out = appendresp(out, status200Ok, nil, cryptedResbytes)
+			} else if sha {
 				sha256sum := sha256.Sum256(resbytes)
 				out = appendresp(out, status200Ok, nil, []byte(hex.EncodeToString(sha256sum[:])))
 			} else {
@@ -250,4 +261,34 @@ func parsereq(data []byte, req *request) (leftover []byte, err error) {
 // in the future go versions.
 func b2s(b []byte) string {
 	return *(*string)(unsafe.Pointer(&b))
+}
+
+// Encrypts given cipher text (prepended with the IV) with AES-128 or AES-256
+// (depending on the length of the key)
+func encryptCBC(plainText, key []byte) (cipherText []byte, err error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	plainText = pad(aes.BlockSize, plainText)
+
+	cipherText = make([]byte, aes.BlockSize+len(plainText))
+	iv := cipherText[:aes.BlockSize]
+	_, err = io.ReadFull(rand.Reader, iv)
+	if err != nil {
+		return nil, err
+	}
+
+	mode := cipher.NewCBCEncrypter(block, iv)
+	mode.CryptBlocks(cipherText[aes.BlockSize:], plainText)
+
+	return cipherText, nil
+}
+
+// Adds PKCS#7 padding (variable block length <= 255 bytes)
+func pad(blockSize int, buf []byte) []byte {
+	padLen := blockSize - (len(buf) % blockSize)
+	padding := bytes.Repeat([]byte{byte(padLen)}, padLen)
+	return append(buf, padding...)
 }
