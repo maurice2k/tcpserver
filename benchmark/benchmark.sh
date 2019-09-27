@@ -72,7 +72,7 @@ test_http_server() {
     then
         echo "Testing with exactly $cpus CPU(s)"
         start_cpu=$cpus
-        $exact=1
+        exact=1
     else
         echo "Testing with up to $cpus CPUs"
     fi

@@ -152,7 +152,7 @@ func main() {
 var headerHTTP11 = []byte("HTTP/1.1")
 var headerDate = []byte("Date: ")
 var headerConnectionClose = []byte("Connection: close")
-var headerServerIdentity = []byte("Server: tsrv")
+var headerServerIdentity = []byte("Server: evio")
 var headerContentLength = []byte("Content-Length: ")
 var newLine = []byte("\r\n")
 
