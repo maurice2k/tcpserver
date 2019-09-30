@@ -29,6 +29,7 @@ type Server struct {
 	listenConfig         *ListenConfig
 	connWaitGroup        sync.WaitGroup
 	connStructPool       sync.Pool
+	loops                int
 }
 
 type Connection struct {
@@ -185,20 +186,17 @@ func (s *Server) Serve() error {
 	if s.listener == nil {
 		return fmt.Errorf("no valid listener found; call Listen() or ListenTLS() first")
 	}
-	goMaxProcs := runtime.GOMAXPROCS(0)
-	if goMaxProcs < 1 {
-		goMaxProcs = 1
-	}
 
-	errChan := make(chan error, goMaxProcs)
+	loops := s.GetLoops()
+	errChan := make(chan error, loops)
 
-	for i := 0; i < goMaxProcs; i++ {
+	for i := 0; i < loops; i++ {
 		go func(id int) {
 			errChan <- s.acceptLoop(id)
 		}(i)
 	}
 
-	for i := 0; i < goMaxProcs; i++ {
+	for i := 0; i < loops; i++ {
 		err := <-errChan
 		if err != nil {
 			return err
@@ -369,6 +367,19 @@ func (conn *Connection) GetContext() *context.Context {
 		conn.ctx = &ctx
 	}
 	return conn.ctx
+}
+
+// Sets number of accept loops
+func (s *Server) SetLoops(loops int) {
+	s.loops = loops
+}
+
+// Returns number of accept loops (defaults to GOMAXPROCS)
+func (s *Server) GetLoops() int {
+	if s.loops < 1 {
+		s.loops = runtime.GOMAXPROCS(0)
+	}
+	return s.loops
 }
 
 // Starts TLS inline

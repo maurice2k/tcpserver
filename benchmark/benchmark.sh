@@ -3,7 +3,7 @@
 # apt install gnuplot git mc screen pv
 # cd /opt
 # wget https://github.com/codesenberg/bombardier/releases/download/v1.2.4/bombardier-linux-amd64 ; chmod +x /opt/bombardier-linux-amd64
-# wget https://dl.google.com/go/go1.12.9.linux-amd64.tar.gz ; tar xzf go1.12.*tar.gz
+# wget https://dl.google.com/go/go1.13.1.linux-amd64.tar.gz ; tar xzf go1.13.*tar.gz
 # echo "export PATH=/opt/go/bin:$PATH" >> ~/.profile
 # echo "export GOROOT=/opt/go" >> ~/.profile
 # source ~/.profile
