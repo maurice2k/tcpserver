@@ -1,5 +1,13 @@
+// Package tcpserver implements an extremely fast and flexible IPv4 and
+// IPv6 capable TCP server with TLS support, graceful shutdown and some
+// TCP tuning options like TCP_FASTOPEN, SO_RESUSEPORT and TCP_DEFER_ACCEPT.
+//
 // Copyright 2019 Moritz Fain
 // Moritz Fain <moritz@fain.io>
+//
+// Source available at github.com/maurice2k/tcpserver,
+// licensed under the MIT license (see LICENSE file).
+
 package tcpserver
 
 import (
@@ -13,6 +21,7 @@ import (
 	"time"
 )
 
+// Server struct
 type Server struct {
 	noCopy noCopy
 
