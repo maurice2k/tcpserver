@@ -23,8 +23,7 @@ import (
 
 // Server struct
 type Server struct {
-	noCopy noCopy
-
+	noCopy               noCopy
 	listenAddr           *net.TCPAddr
 	listener             advancedListener
 	shutdown             bool
@@ -41,6 +40,7 @@ type Server struct {
 	loops                int
 }
 
+// Connection struct embedding net.Conn
 type Connection struct {
 	net.Conn
 	server *Server
@@ -48,6 +48,7 @@ type Connection struct {
 	ts     time.Time
 }
 
+// Listener config struct
 type ListenConfig struct {
 	lc net.ListenConfig
 	// Enable/disable SO_REUSEPORT (requires Linux >=2.4)
@@ -65,11 +66,12 @@ type ListenConfig struct {
 	SocketDeferAccept bool
 }
 
+// Request handler function type
+type RequestHandlerFunc func(conn *Connection)
+
 var defaultListenConfig *ListenConfig = &ListenConfig{
 	SocketReusePort: true,
 }
-
-type RequestHandlerFunc func(conn *Connection)
 
 // net.TCPListener satisfies advancedListener interface
 type advancedListener interface {
@@ -90,7 +92,7 @@ func NewServer(listenAddr string) (*Server, error) {
 }
 
 // Sets TLS config but does not enable TLS yet. TLS can be either enabled
-// by using server.ListebTLS() or later by using connection.StartTLS()
+// by using server.ListenTLS() or later by using connection.StartTLS()
 func (s *Server) SetTLSConfig(config *tls.Config) {
 	s.tlsConfig = config
 }
@@ -170,7 +172,7 @@ func (s *Server) GetListenAddr() *net.TCPAddr {
 	return s.listener.Addr().(*net.TCPAddr)
 }
 
-// Gracefully shutdown server but why no longer than d for active connections.
+// Gracefully shutdown server but wait no longer than d for active connections.
 // Use d = 0 to wait indefinitely for active connections.
 func (s *Server) Shutdown(d time.Duration) (err error) {
 	s.shutdownDeadline = time.Time{}
@@ -231,6 +233,7 @@ func (s *Server) Serve() error {
 	return nil
 }
 
+// Main accept loop
 func (s *Server) acceptLoop(id int) error {
 	var tempDelay time.Duration
 
@@ -403,6 +406,7 @@ func (conn *Connection) StartTLS(config *tls.Config) error {
 	return nil
 }
 
+// Checks whethe rgiven net.TCPAddr is a IPv6 address
 func IsIPv6Addr(addr *net.TCPAddr) bool {
 	return addr.IP.To4() == nil && len(addr.IP) == net.IPv6len
 }
