@@ -34,6 +34,7 @@ type Server struct {
 	maxAcceptConnections int64
 	acceptedConnections  int64
 	tlsConfig            *tls.Config
+	tlsEnabled           bool
 	listenConfig         *ListenConfig
 	connWaitGroup        sync.WaitGroup
 	connStructPool       sync.Pool
@@ -135,17 +136,11 @@ func (s *Server) Listen() (err error) {
 
 // Starts listening using TLS
 func (s *Server) ListenTLS() (err error) {
-	err = s.Listen()
-	if err != nil {
-		return err
+	if s.GetTLSConfig() == nil {
+		return fmt.Errorf("No TLS config set!")
 	}
-
-	// s.listener is always a TCPListener, so we are safe to assume that the
-	// tls.NewListener returned net.Listener{tls.listener} also implements
-	// advancedListener as tls.listener only wraps the given listener
-	s.listener = tls.NewListener(s.listener, s.GetTLSConfig()).(advancedListener)
-
-	return nil
+	s.tlsEnabled = true
+	return s.Listen()
 }
 
 // Sets maximum number of connections that are being accepted before the
@@ -304,6 +299,10 @@ func (s *Server) serveConn(conn net.Conn) {
 	s.connWaitGroup.Add(1)
 	atomic.AddInt32(&s.activeConnections, 1)
 
+	if s.tlsEnabled {
+		conn = tls.Server(conn, s.GetTLSConfig())
+	}
+
 	var myConn *Connection
 	v := s.connStructPool.Get()
 	if v == nil {
@@ -402,7 +401,7 @@ func (conn *Connection) StartTLS(config *tls.Config) error {
 	if config == nil {
 		return fmt.Errorf("no valid TLS config given")
 	}
-	conn.Conn = tls.Server(conn, config)
+	conn.Conn = tls.Server(conn.Conn, config)
 	return nil
 }
 

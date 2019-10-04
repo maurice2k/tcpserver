@@ -1,18 +1,17 @@
 package main
 
 import (
+	"github.com/maurice2k/tcpserver"
+
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"io"
-
-	"github.com/maurice2k/tcpserver"
-
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -64,7 +63,7 @@ func main() {
 	if aes128 {
 		fmt.Printf(" - encrypt response with aes-128-cbc\n")
 	}
-	if !aes128 && sha  {
+	if !aes128 && sha {
 		fmt.Printf(" - output sha256 of reponse\n")
 	}
 
