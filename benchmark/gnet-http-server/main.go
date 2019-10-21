@@ -46,6 +46,55 @@ var status500Error = []byte("500 Error")
 
 var aesKey = []byte("0123456789ABCDEF")
 
+type httpServer struct {
+	*gnet.EventServer
+}
+
+func (hs *httpServer) OnInitComplete(srv gnet.Server) (action gnet.Action) {
+	log.Printf("http server using gnet started on %s with GOMAXPROCS=%d (loops: %d)", listenAddr, runtime.GOMAXPROCS(0), srv.NumLoops)
+	return
+}
+
+func (hs *httpServer) React(c gnet.Conn) (out []byte, action gnet.Action) {
+	data := c.Read()
+	// process the pipeline
+	var req request
+	for {
+		leftover, err := parsereq(data, &req)
+		if err != nil {
+			// bad thing happened
+			out = appendresp(out, status500Error, nil, []byte(err.Error()+"\n"))
+			c.ResetBuffer()
+			action = gnet.Close
+			break
+		} else if len(leftover) == len(data) {
+			// request not ready, yet
+			break
+		}
+		// handle the request
+		if aes128 {
+			cryptedResbytes, _ := encryptCBC(resbytes, aesKey)
+			out = appendresp(out, status200Ok, nil, cryptedResbytes)
+		} else if sha {
+			sha256sum := sha256.Sum256(resbytes)
+			out = appendresp(out, status200Ok, nil, []byte(hex.EncodeToString(sha256sum[:])))
+		} else {
+			out = appendresp(out, status200Ok, nil, resbytes)
+		}
+
+		data = leftover
+	}
+	if sleep > 0 {
+		time.Sleep(time.Millisecond * time.Duration(sleep))
+	}
+
+	if !keepAlive {
+		action = gnet.Close
+	}
+	c.ResetBuffer()
+	return
+}
+
 func main() {
 	var loops int
 	var aaaa int
@@ -71,57 +120,11 @@ func main() {
 
 	resbytes = []byte(res)
 
-	var events gnet.Events
-	events.OnInitComplete = func(srv gnet.Server) (action gnet.Action) {
-		log.Printf("http server using gnet started on %s with GOMAXPROCS=%d (loops: %d)", listenAddr, runtime.GOMAXPROCS(0), srv.NumLoops)
-		return
-	}
+	http := &httpServer{}
+	// We at least want the single http address.
+	// Start serving!
+	log.Fatal(gnet.Serve(http, "tcp://"+listenAddr, gnet.WithMulticore(true)))
 
-	events.React = func(c gnet.Conn) (out []byte, action gnet.Action) {
-		top, tail := c.ReadPair()
-		data := append(top, tail...)
-		// process the pipeline
-		var req request
-		for {
-			leftover, err := parsereq(data, &req)
-			if err != nil {
-				// bad thing happened
-				out = appendresp(out, status500Error, nil, []byte(err.Error()+"\n"))
-				c.ResetBuffer()
-				action = gnet.Close
-				break
-			} else if len(leftover) == len(data) {
-				// request not ready, yet
-				break
-			}
-			// handle the request
-			if aes128 {
-				cryptedResbytes, _ := encryptCBC(resbytes, aesKey)
-				out = appendresp(out, status200Ok, nil, cryptedResbytes)
-			} else if sha {
-				sha256sum := sha256.Sum256(resbytes)
-				out = appendresp(out, status200Ok, nil, []byte(hex.EncodeToString(sha256sum[:])))
-			} else {
-				out = appendresp(out, status200Ok, nil, resbytes)
-			}
-
-			data = leftover
-		}
-		if sleep > 0 {
-			time.Sleep(time.Millisecond * time.Duration(sleep))
-		}
-
-		if !keepAlive {
-			action = gnet.Close
-		}
-		c.ResetBuffer()
-		return
-	}
-	var ssuf string
-	if stdlib {
-		ssuf = "-net"
-	}
-	log.Fatal(gnet.Serve(events, fmt.Sprintf("tcp"+ssuf+"://%s", listenAddr), gnet.WithMulticore(true)))
 }
 
 var headerHTTP11 = []byte("HTTP/1.1")

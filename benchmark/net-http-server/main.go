@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -42,7 +43,7 @@ func main() {
 
 	resbytes := []byte(res)
 
-	log.Printf("http server using plain golang net/* starting on %s", listenAddr)
+	log.Printf("http server using plain golang net/* starting on %s with GOMAXPROCS=%d", listenAddr, runtime.GOMAXPROCS(0))
 	s := &http.Server{
 		Addr: listenAddr,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

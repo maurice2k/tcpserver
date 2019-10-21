@@ -44,10 +44,8 @@ fi
 ps a |grep "[t]est_http_server" |awk '{print $1}' |xargs -I{} kill -9 {}
 
 run_server() {
-    GOMAXPROCS=$1
-    export GOMAXPROCS
     echo "Starting server: $2"
-    eval "$2 &"
+    eval "GOMAXPROCS=$1 $2 &"
     pid=$!
 }
 

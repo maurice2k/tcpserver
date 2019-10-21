@@ -1,8 +1,6 @@
 package main
 
 import (
-	"github.com/maurice2k/tcpserver"
-
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
@@ -18,6 +16,8 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+
+	"github.com/maurice2k/tcpserver"
 )
 
 var listenAddr string
@@ -92,20 +92,6 @@ type request struct {
 }
 
 func requestHandler(conn *tcpserver.Connection) {
-	/*		fasthttp.ServeConn(conn, func(c *fasthttp.RequestCtx) {
-
-			if sha {
-				sha256sum := sha256.Sum256(resbytes)
-				c.WriteString(hex.EncodeToString(sha256sum[:]))
-			} else {
-				c.Write(resbytes)
-			}
-
-			if sleep > 0 {
-				time.Sleep(time.Millisecond * time.Duration(sleep))
-			}
-		})/**/
-
 	buf := make([]byte, 2048)
 	out := make([]byte, 0, 2048)
 	data := make([]byte, 0, 2048)

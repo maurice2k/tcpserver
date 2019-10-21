@@ -10,6 +10,7 @@ import (
 	"flag"
 	"io"
 	"log"
+	"runtime"
 	"strings"
 	"time"
 
@@ -43,7 +44,7 @@ func main() {
 
 	resbytes := []byte(res)
 
-	log.Printf("http server using valyala/fasthttp starting on %s", listenAddr)
+	log.Printf("http server using valyala/fasthttp starting on %s with GOMAXPROCS=%d", listenAddr, runtime.GOMAXPROCS(0))
 	s := &fasthttp.Server{
 		Handler: func(c *fasthttp.RequestCtx) {
 

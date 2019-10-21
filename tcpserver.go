@@ -19,6 +19,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/maurice2k/workerpool"
 )
 
 // Server struct
@@ -39,6 +41,7 @@ type Server struct {
 	connWaitGroup        sync.WaitGroup
 	connStructPool       sync.Pool
 	loops                int
+	wp                   *workerpool.WorkerPool
 }
 
 // Connection struct embedding net.Conn
@@ -194,6 +197,15 @@ func (s *Server) Serve() error {
 	}
 
 	loops := s.GetLoops()
+
+	s.wp = workerpool.NewWorkerPool(func(task workerpool.Task) {
+		s.serveConn(task.(net.Conn))
+	})
+
+	s.wp.SetNumInstances(loops)
+	s.wp.Start()
+	defer s.wp.Stop()
+
 	errChan := make(chan error, loops)
 
 	for i := 0; i < loops; i++ {
@@ -288,7 +300,7 @@ func (s *Server) acceptLoop(id int) error {
 			continue
 		}
 
-		go s.serveConn(conn)
+		s.wp.AddTask(conn)
 	}
 	return nil
 }

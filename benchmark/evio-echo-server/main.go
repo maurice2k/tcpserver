@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"runtime"
 	"strings"
 
 	"github.com/tidwall/evio"
@@ -32,7 +33,7 @@ func main() {
 	var events evio.Events
 	events.NumLoops = loops
 	events.Serving = func(srv evio.Server) (action evio.Action) {
-		log.Printf("echo server started on %s (loops: %d)", listenAddr, srv.NumLoops)
+		log.Printf("echo server started on %s with GOMAXPROCS=%d (loops: %d)", listenAddr, runtime.GOMAXPROCS(0), srv.NumLoops)
 		if reuseport {
 			log.Printf("reuseport")
 		}
