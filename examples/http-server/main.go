@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -91,55 +92,71 @@ type request struct {
 	remoteAddr    string
 }
 
+type reqVars struct {
+	buf,
+	out,
+	data,
+	leftover []byte
+	req request
+}
+
+var reqVarsPool *sync.Pool = &sync.Pool{
+	New: func() interface{} {
+		return &reqVars{
+			buf:  make([]byte, 2048),
+			out:  make([]byte, 0, 2048),
+			data: make([]byte, 0, 2048),
+		}
+	},
+}
+
 func requestHandler(conn *tcpserver.Connection) {
-	buf := make([]byte, 2048)
-	out := make([]byte, 0, 2048)
-	data := make([]byte, 0, 2048)
-	var leftover []byte
-	var req request
+	rv := reqVarsPool.Get().(*reqVars)
 	for {
-		n, err := conn.Read(buf)
+		n, err := conn.Read(rv.buf[:2048])
 		if err != nil {
 			break
 		}
-		data = append(data, buf[0:n]...)
+		rv.data = append(rv.data, rv.buf[0:n]...)
 
-		leftover, err = parsereq(data, &req)
+		rv.leftover, err = parsereq(rv.data, &rv.req)
 		if err != nil {
 			// bad thing happened
-			out = appendresp(out, status500Error, nil, []byte(err.Error()+"\n"))
+			rv.out = appendresp(rv.out, status500Error, nil, []byte(err.Error()+"\n"))
 			break
 		}
 
-		if len(leftover) == len(data) {
+		if len(rv.leftover) == len(rv.data) {
 			// request not ready, yet
 			continue
 		}
-
+		rv.out = rv.out[:0]
 		// handle the request
 		if aes128 {
 			cryptedResbytes, _ := encryptCBC(resbytes, aesKey)
-			out = appendresp(out, status200Ok, nil, cryptedResbytes)
+			rv.out = appendresp(rv.out, status200Ok, nil, cryptedResbytes)
 		} else if sha {
 			sha256sum := sha256.Sum256(resbytes)
-			out = appendresp(out, status200Ok, nil, []byte(hex.EncodeToString(sha256sum[:])))
+			rv.out = appendresp(rv.out, status200Ok, nil, []byte(hex.EncodeToString(sha256sum[:])))
 		} else {
-			out = appendresp(out, status200Ok, nil, resbytes)
+			rv.out = appendresp(rv.out, status200Ok, nil, resbytes)
 		}
 
 		if sleep > 0 {
 			time.Sleep(time.Millisecond * time.Duration(sleep))
 		}
 
-		conn.Write(out)
+		conn.Write(rv.out)
 
 		if !keepAlive {
 			break
 		}
 
-		data = data[0:0]
-		out = out[0:0]
+		rv.data = rv.data[0:0]
+		rv.out = rv.out[0:0]
 	}
+
+	reqVarsPool.Put(rv)
 	//*/
 	return
 }
