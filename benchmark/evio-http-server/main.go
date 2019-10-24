@@ -102,30 +102,29 @@ func main() {
 		data := is.Begin(in)
 		// process the pipeline
 		var req request
-		for {
-			leftover, err := parsereq(data, &req)
-			if err != nil {
-				// bad thing happened
-				out = appendresp(out, status500Error, nil, []byte(err.Error()+"\n"))
-				action = evio.Close
-				break
-			} else if len(leftover) == len(data) {
-				// request not ready, yet
-				break
-			}
-			// handle the request
-			if aes128 {
-				cryptedResbytes, _ := encryptCBC(resbytes, aesKey)
-				out = appendresp(out, status200Ok, nil, cryptedResbytes)
-			} else if sha {
-				sha256sum := sha256.Sum256(resbytes)
-				out = appendresp(out, status200Ok, nil, []byte(hex.EncodeToString(sha256sum[:])))
-			} else {
-				out = appendresp(out, status200Ok, nil, resbytes)
-			}
-
-			data = leftover
+		leftover, err := parsereq(data, &req)
+		if err != nil {
+			// bad thing happened
+			out = appendresp(out, status500Error, nil, []byte(err.Error()+"\n"))
+			action = evio.Close
+			return
+		} else if len(leftover) == len(data) {
+			// request not ready, yet
+			return
 		}
+		// handle the request
+		if aes128 {
+			cryptedResbytes, _ := encryptCBC(resbytes, aesKey)
+			out = appendresp(out, status200Ok, nil, cryptedResbytes)
+		} else if sha {
+			sha256sum := sha256.Sum256(resbytes)
+			out = appendresp(out, status200Ok, nil, []byte(hex.EncodeToString(sha256sum[:])))
+		} else {
+			out = appendresp(out, status200Ok, nil, resbytes)
+		}
+
+		data = leftover
+
 		if sleep > 0 {
 			time.Sleep(time.Millisecond * time.Duration(sleep))
 		}
