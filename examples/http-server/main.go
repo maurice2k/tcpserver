@@ -93,7 +93,6 @@ type request struct {
 }
 
 type reqVars struct {
-	buf,
 	out,
 	data,
 	leftover []byte
@@ -103,21 +102,22 @@ type reqVars struct {
 var reqVarsPool *sync.Pool = &sync.Pool{
 	New: func() interface{} {
 		return &reqVars{
-			buf:  make([]byte, 2048),
 			out:  make([]byte, 0, 2048),
-			data: make([]byte, 0, 2048),
+			data: make([]byte, 2048),
 		}
 	},
 }
 
 func requestHandler(conn *tcpserver.Connection) {
 	rv := reqVarsPool.Get().(*reqVars)
+	bufSize := 0
 	for {
-		n, err := conn.Read(rv.buf[:2048])
-		if err != nil {
+		n, err := conn.Read(rv.data[bufSize:2048])
+		if err != nil || n == 0 {
 			break
 		}
-		rv.data = append(rv.data, rv.buf[0:n]...)
+		bufSize += n
+		rv.data = rv.data[:bufSize]
 
 		rv.leftover, err = parsereq(rv.data, &rv.req)
 		if err != nil {
@@ -154,10 +154,10 @@ func requestHandler(conn *tcpserver.Connection) {
 
 		rv.data = rv.data[0:0]
 		rv.out = rv.out[0:0]
+		bufSize = 0
 	}
 
 	reqVarsPool.Put(rv)
-	//*/
 	return
 }
 
