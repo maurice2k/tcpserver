@@ -243,7 +243,11 @@ func (s *Server) Serve() error {
 
 // Main accept loop
 func (s *Server) acceptLoop(id int) error {
-	var tempDelay time.Duration
+	var (
+		tempDelay time.Duration
+		conn      net.Conn
+		err       error
+	)
 
 	for {
 		if s.maxAcceptConnections > 0 && s.acceptedConnections >= s.maxAcceptConnections {
@@ -256,17 +260,17 @@ func (s *Server) acceptLoop(id int) error {
 		}
 
 		_ = s.listener.SetDeadline(time.Now().Add(1 * time.Second))
-		conn, err := s.listener.Accept()
+		conn, err = s.listener.Accept()
 		if err != nil {
 			if opErr, ok := err.(*net.OpError); ok {
-
-				if !(opErr.Temporary() && opErr.Timeout()) && s.shutdown {
-					break
-				}
 
 				if opErr.Timeout() {
 					tempDelay = 0
 					continue
+				}
+
+				if !(opErr.Temporary() && opErr.Timeout()) && s.shutdown {
+					break
 				}
 
 				if opErr.Temporary() {
@@ -298,10 +302,12 @@ func (s *Server) acceptLoop(id int) error {
 			// the fact that we use multiple accept loops without locking.
 			// In this case we just close the connection (we shouldn't have accepted
 			// in the first place) and continue for shutting down the server.
+			conn.Close()
 			continue
 		}
 
 		s.wp.AddTask(conn)
+		conn = nil
 	}
 	return nil
 }
