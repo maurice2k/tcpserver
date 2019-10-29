@@ -42,6 +42,7 @@ type Server struct {
 	connStructPool       sync.Pool
 	loops                int
 	wp                   *workerpool.WorkerPool
+	wpNumInstances       int
 }
 
 // Connection struct embedding net.Conn
@@ -202,7 +203,7 @@ func (s *Server) Serve() error {
 		s.serveConn(task.(net.Conn))
 	})
 
-	s.wp.SetNumInstances(loops)
+	s.wp.SetNumInstances(s.GetWorkerpoolInstances())
 	s.wp.Start()
 	defer s.wp.Stop()
 
@@ -403,6 +404,19 @@ func (s *Server) GetLoops() int {
 		s.loops = runtime.GOMAXPROCS(0)
 	}
 	return s.loops
+}
+
+// Sets number of workerpool instances
+func (s *Server) SetWorkerpoolInstances(num int) {
+	s.wpNumInstances = num
+}
+
+// Returns number of workerpool instances
+func (s *Server) GetWorkerpoolInstances() int {
+	if s.wpNumInstances < 1 {
+		s.wpNumInstances = s.GetLoops()
+	}
+	return s.wpNumInstances
 }
 
 // Starts TLS inline

@@ -29,6 +29,8 @@ var aes128 bool
 var sha bool
 var res string
 var resbytes []byte
+var loops int
+var wpinstances int
 
 var status200Ok = []byte("200 OK")
 var status500Error = []byte("500 Error")
@@ -46,6 +48,10 @@ func main() {
 	flag.BoolVar(&aes128, "aes128", false, "encrypt response with aes-128-cbc")
 	flag.BoolVar(&sha, "sha", false, "output sha256 instead of plain response")
 	flag.IntVar(&sleep, "sleep", 0, "sleep number of milliseconds per request")
+
+	flag.IntVar(&loops, "loops", 0, "number of accept loops")
+	flag.IntVar(&wpinstances, "wpinstances", 0, "number of workerpool instanes")
+
 	flag.Parse()
 
 	if aaaa > 0 {
@@ -75,6 +81,8 @@ func main() {
 		SocketDeferAccept: false,
 	})
 	server.SetRequestHandler(requestHandler)
+	server.SetLoops(loops)
+	server.SetWorkerpoolInstances(wpinstances)
 	err := server.Listen()
 	if err != nil {
 		panic("Error listening on interface: " + err.Error())
