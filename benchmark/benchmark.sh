@@ -1,23 +1,12 @@
 #!/bin/bash
 
-# apt install gnuplot git mc screen pv
-# cd /opt
-# wget https://github.com/codesenberg/bombardier/releases/download/v1.2.4/bombardier-linux-amd64 ; chmod +x /opt/bombardier-linux-amd64
-# wget https://dl.google.com/go/go1.13.1.linux-amd64.tar.gz ; tar xzf go1.13.*tar.gz
-# echo "export PATH=/opt/go/bin:$PATH" >> ~/.profile
-# echo "export GOROOT=/opt/go" >> ~/.profile
-# source ~/.profile
-# cd ~/
-# git clone git@github.com:maurice2k/tcpserver.git
-# cd tcpserver/benchmark
-# bash benchmark.sh
-
-
-bombardier='/opt/bombardier-linux-amd64'
+wrk='/opt/wrk/wrk'
 
 cpus=`grep ^processor /proc/cpuinfo |wc -l`
-conns=100
-duration=5   # duration of test in seconds
+
+conns=100    # wrk concurrent connections
+threads=10   # wrk threads
+duration=5   # wrk test duration in seconds
 
 if [[ -n $CPUS && $CPUS -gt 0 ]]
 then
@@ -27,6 +16,11 @@ fi
 if [[ -n $CONNS && $CONNS -gt 0 ]]
 then
     conns=$CONNS
+fi
+
+if [[ -n $THREADS && $THREADS -gt 0 ]]
+then
+    threads=$THREADS
 fi
 
 if [[ -n $DURATION && $DURATION -gt 0 ]]
@@ -105,7 +99,7 @@ test_http_server() {
         done
 
         used_cpus+=($i)
-        results+=(`$bombardier -c $conns -d ${duration}s $3 --fasthttp |grep -o 'Reqs/sec.*' |awk '{print $2}'`)
+        results+=(`$bombardier -c $conns -t $threads -d ${duration}s $3 |grep -o 'Requests/sec:.*' |awk '{printf "%d\n", $2}'`)
 
         kill_server
     done
@@ -300,6 +294,20 @@ run_test6() {
     echo ""
 }
 
+run_install() {
+  pwd=`pwd`
+  apt install gnuplot git mc screen pv  build-essential libssl-dev -y
+  cd /opt
+  wget https://dl.google.com/go/go1.13.3.linux-amd64.tar.gz ; tar xzf go1.13.*tar.gz
+  echo "export PATH=/opt/go/bin:$PATH" >> ~/.profile
+  echo "export GOROOT=/opt/go" >> ~/.profile
+  source ~/.profile
+  git clone https://github.com/wg/wrk.git wrk
+  cd wrk
+  make -j4
+  cd $pwd
+}
+
 run_all_tests() {
     run_test1
     run_test2
@@ -321,6 +329,8 @@ test4)  run_test4
 test5)  run_test5
         ;;
 test6)  run_test6
+        ;;
+install run_install
         ;;
 *)      run_all_tests
         ;;
