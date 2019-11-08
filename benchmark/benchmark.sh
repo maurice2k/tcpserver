@@ -295,17 +295,17 @@ run_test6() {
 }
 
 run_install() {
-  pwd=`pwd`
-  apt install gnuplot git mc screen pv  build-essential libssl-dev -y
-  cd /opt
-  wget https://dl.google.com/go/go1.13.3.linux-amd64.tar.gz ; tar xzf go1.13.*tar.gz
-  echo "export PATH=/opt/go/bin:$PATH" >> ~/.profile
-  echo "export GOROOT=/opt/go" >> ~/.profile
-  source ~/.profile
-  git clone https://github.com/wg/wrk.git wrk
-  cd wrk
-  make -j4
-  cd $pwd
+    pwd=`pwd`
+    apt install gnuplot git mc screen pv  build-essential libssl-dev -y
+    cd /opt
+    wget https://dl.google.com/go/go1.13.3.linux-amd64.tar.gz ; tar xzf go1.13.*tar.gz
+    echo "export PATH=/opt/go/bin:$PATH" >> ~/.profile
+    echo "export GOROOT=/opt/go" >> ~/.profile
+    source ~/.profile
+    git clone https://github.com/wg/wrk.git wrk
+    cd wrk
+    make -j4
+    cd $pwd
 }
 
 run_all_tests() {
@@ -318,21 +318,21 @@ run_all_tests() {
 }
 
 case "$1" in
-test1)  run_test1
-        ;;
-test2)  run_test2
-        ;;
-test3)  run_test3
-        ;;
-test4)  run_test4
-        ;;
-test5)  run_test5
-        ;;
-test6)  run_test6
-        ;;
-install run_install
-        ;;
-*)      run_all_tests
-        ;;
+test1)    run_test1
+          ;;
+test2)    run_test2
+          ;;
+test3)    run_test3
+          ;;
+test4)    run_test4
+          ;;
+test5)    run_test5
+          ;;
+test6)    run_test6
+          ;;
+install)  run_install
+          ;;
+*)        run_all_tests
+          ;;
 esac
 exit 0
