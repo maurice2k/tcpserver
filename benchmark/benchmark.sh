@@ -99,7 +99,7 @@ test_http_server() {
         done
 
         used_cpus+=($i)
-        results+=(`$bombardier -c $conns -t $threads -d ${duration}s $3 |grep -o 'Requests/sec:.*' |awk '{printf "%d\n", $2}'`)
+        results+=(`$wrk -c $conns -t $threads -d ${duration}s $3 |grep -o 'Requests/sec:.*' |awk '{printf "%d\n", $2}'`)
 
         kill_server
     done
