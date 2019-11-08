@@ -1,12 +1,10 @@
 #!/bin/bash
 
-wrk='/opt/wrk/wrk'
+bombardier='/opt/bombardier-linux-amd64'
 
 cpus=`grep ^processor /proc/cpuinfo |wc -l`
-
-conns=100    # wrk concurrent connections
-threads=10   # wrk threads
-duration=5   # wrk test duration in seconds
+conns=100
+duration=5   # duration of test in seconds
 
 if [[ -n $CPUS && $CPUS -gt 0 ]]
 then
@@ -16,11 +14,6 @@ fi
 if [[ -n $CONNS && $CONNS -gt 0 ]]
 then
     conns=$CONNS
-fi
-
-if [[ -n $THREADS && $THREADS -gt 0 ]]
-then
-    threads=$THREADS
 fi
 
 if [[ -n $DURATION && $DURATION -gt 0 ]]
@@ -99,7 +92,7 @@ test_http_server() {
         done
 
         used_cpus+=($i)
-        results+=(`$wrk -c $conns -t $threads -d ${duration}s $3 |grep -o 'Requests/sec:.*' |awk '{printf "%d\n", $2}'`)
+        results+=(`$bombardier -c $conns -d ${duration}s $3 --fasthttp |grep -o 'Reqs/sec.*' |awk '{print $2}'`)
 
         kill_server
     done
@@ -302,9 +295,7 @@ run_install() {
     echo "export PATH=/opt/go/bin:$PATH" >> ~/.profile
     echo "export GOROOT=/opt/go" >> ~/.profile
     source ~/.profile
-    git clone https://github.com/wg/wrk.git wrk
-    cd wrk
-    make -j4
+    wget https://github.com/codesenberg/bombardier/releases/download/v1.2.4/bombardier-linux-amd64 ; chmod +x /opt/bombardier-linux-amd64
     cd $pwd
 }
 
