@@ -315,7 +315,6 @@ func (s *Server) acceptLoop(id int) error {
 // Serve a single connection
 func (s *Server) serveConn(conn net.Conn) {
 	defer conn.Close()
-	s.connWaitGroup.Add(1)
 	atomic.AddInt32(&s.activeConnections, 1)
 
 	if s.tlsEnabled {
@@ -325,16 +324,14 @@ func (s *Server) serveConn(conn net.Conn) {
 	var myConn *Connection
 	v := s.connStructPool.Get()
 	if v == nil {
-		myConn = &Connection{
-			Conn:   conn,
-			server: s,
-			ts:     time.Now(),
-		}
+		myConn = new(Connection)
+		myConn.server = s
 	} else {
 		myConn = v.(*Connection)
-		myConn.Conn = conn
-		myConn.ts = time.Now()
 	}
+
+	myConn.Conn = conn
+	myConn.ts = time.Now()
 
 	s.requestHandler(myConn)
 
@@ -342,7 +339,6 @@ func (s *Server) serveConn(conn net.Conn) {
 	myConn.Conn = nil
 	s.connStructPool.Put(myConn)
 
-	s.connWaitGroup.Done()
 	atomic.AddInt32(&s.activeConnections, -1)
 }
 
