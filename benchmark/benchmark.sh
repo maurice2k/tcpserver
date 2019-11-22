@@ -92,7 +92,7 @@ test_http_server() {
         done
 
         used_cpus+=($i)
-        results+=(`$bombardier -c $conns -d ${duration}s $3 --fasthttp |grep -o 'Reqs/sec.*' |awk '{print $2}'`)
+        results+=(`GOGC=400 $bombardier -c $conns -d ${duration}s $3 --fasthttp |grep -o 'Reqs/sec.*' |awk '{print $2}'`)
 
         kill_server
     done

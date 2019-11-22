@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
@@ -10,16 +11,45 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
+	"os"
 	"reflect"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
 	"github.com/maurice2k/tcpserver"
 )
+
+type request struct {
+	proto, method string
+	path, query   string
+	head, body    string
+	remoteAddr    string
+}
+
+type reqVars struct {
+	data [2048]byte
+	out []byte
+	req request
+}
+
+var reqVarsPool *sync.Pool = &sync.Pool{
+	New: func() interface{} {
+		return &reqVars{
+			out: make([]byte, 0, 2048),
+		}
+	},
+}
+
+var serverDate atomic.Value
+var bwPool *sync.Pool = &sync.Pool{}
+var brPool *sync.Pool = &sync.Pool{}
 
 var listenAddr string
 var sleep int
@@ -38,6 +68,38 @@ var status500Error = []byte("500 Error")
 var aesKey = []byte("0123456789ABCDEF")
 
 func main() {
+	go func() {
+		defer os.Exit(0)
+		cpuProfile, err := os.Create("tcpserver-cpu.prof")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer pprof.StopCPUProfile()
+		pprof.StartCPUProfile(cpuProfile)
+
+		time.Sleep(time.Second * 10)
+		fmt.Println("Writing cpu & mem profile...")
+
+		// Memory Profile
+		memProfile, err := os.Create("tcpserver-mem.prof")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer memProfile.Close()
+		runtime.GC()
+		if err := pprof.WriteHeapProfile(memProfile); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	go func() {
+		for {
+			buf := appendTime(nil, time.Now())
+			serverDate.Store(buf)
+			time.Sleep(time.Second)
+		}
+	}()
+
 	tfMap := make(map[bool]string)
 	tfMap[true] = "on"
 	tfMap[false] = "off"
@@ -74,13 +136,14 @@ func main() {
 		fmt.Printf(" - output sha256 of reponse\n")
 	}
 
+
 	server, _ := tcpserver.NewServer(listenAddr)
 	server.SetListenConfig(&tcpserver.ListenConfig{
-		SocketReusePort:   false,
+		SocketReusePort:   true,
 		SocketFastOpen:    false,
 		SocketDeferAccept: false,
 	})
-	server.SetRequestHandler(requestHandler)
+	server.SetRequestHandler(requestHandlerSimple)
 	server.SetLoops(loops)
 	server.SetWorkerpoolInstances(wpinstances)
 	err := server.Listen()
@@ -93,75 +156,145 @@ func main() {
 	}
 }
 
-type request struct {
-	proto, method string
-	path, query   string
-	head, body    string
-	remoteAddr    string
+func acquireReader(conn *tcpserver.Connection) *bufio.Reader {
+	v:= brPool.Get()
+	if v == nil {
+		return bufio.NewReader(conn)
+	}
+	br := v.(*bufio.Reader)
+	br.Reset(conn)
+	return br
 }
 
-type reqVars struct {
-	out,
-	data,
-	leftover []byte
-	req request
+func releaseReader(br *bufio.Reader) {
+	brPool.Put(br)
 }
 
-var reqVarsPool *sync.Pool = &sync.Pool{
-	New: func() interface{} {
-		return &reqVars{
-			out:  make([]byte, 0, 2048),
-			data: make([]byte, 2048),
-		}
-	},
+func acquireWriter(conn *tcpserver.Connection) *bufio.Writer {
+	v:= bwPool.Get()
+	if v == nil {
+		return bufio.NewWriter(conn)
+	}
+	bw := v.(*bufio.Writer)
+	bw.Reset(conn)
+	return bw
 }
+
+func releaseWriter(bw *bufio.Writer) {
+	bwPool.Put(bw)
+}
+
+
 
 func requestHandler(conn *tcpserver.Connection) {
+	var leftover []byte
+	var bw *bufio.Writer
+
 	rv := reqVarsPool.Get().(*reqVars)
+
 	bufSize := 0
+	var buf [50]byte
 	for {
 		n, err := conn.Read(rv.data[bufSize:2048])
-		if err != nil || n == 0 {
+		if err != nil && n == 0 || n == 0 {
 			break
 		}
 		bufSize += n
-		rv.data = rv.data[:bufSize]
 
-		rv.leftover, err = parsereq(rv.data, &rv.req)
+		leftover, err = parsereq(rv.data[0:bufSize], &rv.req)
 		if err != nil {
 			// bad thing happened
-			rv.out = appendresp(rv.out, status500Error, nil, []byte(err.Error()+"\n"))
+			if bw == nil {
+				bw = acquireWriter(conn)
+			}
+			appendrespbw(bw, buf[:0], status500Error, []byte(err.Error()+"\n"))
+			bw.Flush()
 			break
 		}
 
-		if len(rv.leftover) == len(rv.data) {
+		if len(leftover) == len(rv.data) {
 			// request not ready, yet
 			continue
 		}
-		rv.out = rv.out[:0]
 		// handle the request
+		if bw == nil {
+			bw = acquireWriter(conn)
+		}
 		if aes128 {
 			cryptedResbytes, _ := encryptCBC(resbytes, aesKey)
-			rv.out = appendresp(rv.out, status200Ok, nil, cryptedResbytes)
+			appendrespbw(bw, buf[:0], status200Ok, cryptedResbytes)
 		} else if sha {
 			sha256sum := sha256.Sum256(resbytes)
-			rv.out = appendresp(rv.out, status200Ok, nil, []byte(hex.EncodeToString(sha256sum[:])))
+			appendrespbw(bw, buf[:0], status200Ok, []byte(hex.EncodeToString(sha256sum[:])))
 		} else {
-			rv.out = appendresp(rv.out, status200Ok, nil, resbytes)
+			appendrespbw(bw, buf[:0], status200Ok, resbytes)
 		}
 
 		if sleep > 0 {
 			time.Sleep(time.Millisecond * time.Duration(sleep))
 		}
 
-		conn.Write(rv.out)
+		bw.Flush()
 
 		if !keepAlive {
 			break
 		}
 
-		rv.data = rv.data[0:0]
-		rv.out = rv.out[0:0]
+		bufSize = 0
+	}
+
+	if bw != nil {
+		releaseWriter(bw)
+	}
+
+	reqVarsPool.Put(rv)
+	return
+}
+
+func requestHandlerSimple(conn *tcpserver.Connection) {
+	var leftover []byte
+
+	rv := reqVarsPool.Get().(*reqVars)
+
+	bufSize := 0
+	var buf [50]byte
+	for {
+		n, err := conn.Read(rv.data[bufSize:2048])
+		if err != nil && n == 0 || n == 0 {
+			break
+		}
+		bufSize += n
+
+		leftover, err = parsereq(rv.data[0:bufSize], &rv.req)
+		if err != nil {
+			// bad thing happened
+			writeResponse(conn, rv.out[:0], buf[:0], status500Error, []byte(err.Error()+"\n"))
+			break
+		}
+
+		if len(leftover) == len(rv.data) {
+			// request not ready, yet
+			continue
+		}
+		// handle the request
+		if aes128 {
+			cryptedResbytes, _ := encryptCBC(resbytes, aesKey)
+			writeResponse(conn, rv.out[:0], buf[:0], status200Ok, cryptedResbytes)
+		} else if sha {
+			sha256sum := sha256.Sum256(resbytes)
+			writeResponse(conn, rv.out[:0], buf[:0], status200Ok, []byte(hex.EncodeToString(sha256sum[:])))
+		} else {
+			writeResponse(conn, rv.out[:0], buf[:0], status200Ok, resbytes)
+		}
+
+		if sleep > 0 {
+			time.Sleep(time.Millisecond * time.Duration(sleep))
+		}
+
+		if !keepAlive {
+			break
+		}
+
 		bufSize = 0
 	}
 
@@ -169,19 +302,21 @@ func requestHandler(conn *tcpserver.Connection) {
 	return
 }
 
-var headerHTTP11 = []byte("HTTP/1.1")
+var headerHTTP11 = []byte("HTTP/1.1 ")
 var headerDate = []byte("Date: ")
 var headerConnectionClose = []byte("Connection: close")
+var headerConnectionKeepAlive = []byte("Connection: keep-alive")
 var headerServerIdentity = []byte("Server: tsrv")
 var headerContentLength = []byte("Content-Length: ")
+var headerContentType = []byte("Content-Type: ")
+var headerContentTypeTextPlain = []byte("text/plain")
 var newLine = []byte("\r\n")
 
-// appendresp will append a valid http response to the provide bytes.
+// writeResponse will append a valid http response to the provide bytes.
 // The status param should be the code plus text such as "200 OK".
 // The head parameter should be a series of lines ending with "\r\n" or empty.
-func appendresp(b []byte, status, head, body []byte) []byte {
+func writeResponse(w io.Writer, b, buf, status, body []byte) {
 	b = append(b, headerHTTP11...)
-	b = append(b, ' ')
 	b = append(b, status...)
 	b = append(b, newLine...)
 	b = append(b, headerServerIdentity...)
@@ -189,22 +324,104 @@ func appendresp(b []byte, status, head, body []byte) []byte {
 	if !keepAlive {
 		b = append(b, headerConnectionClose...)
 		b = append(b, newLine...)
-	}
-	b = append(b, headerDate...)
-	b = time.Now().AppendFormat(b, "Mon, 02 Jan 2006 15:04:05 GMT")
-	b = append(b, newLine...)
-	if len(body) > 0 {
-		b = append(b, headerContentLength...)
-		b = strconv.AppendInt(b, int64(len(body)), 10)
+	} else {
+		b = append(b, headerConnectionKeepAlive...)
 		b = append(b, newLine...)
 	}
-	b = append(b, head...)
+	b = append(b, headerDate...)
+	b = append(b, serverDate.Load().([]byte)...)
+	b = append(b, newLine...)
+	if len(body) > 0 {
+		b = append(b, headerContentType...)
+		b = append(b, headerContentTypeTextPlain...)
+		b = append(b, newLine...)
+		b = append(b, headerContentLength...)
+		b = append(b, AppendUint(buf[:0], len(body))...)
+		//b = strconv.AppendInt(b, int64(len(body)), 10)
+		b = append(b, newLine...)
+	}
 	b = append(b, newLine...)
 	if len(body) > 0 {
 		b = append(b, body...)
 	}
-	return b
+	w.Write(b)
 }
+
+func appendrespbw(bw *bufio.Writer, buf[]byte, status, body []byte) {
+	bw.Write(headerHTTP11)
+	bw.Write(status)
+	bw.Write(newLine)
+	bw.Write(headerServerIdentity)
+	bw.Write(newLine)
+	if !keepAlive {
+		bw.Write(headerConnectionClose)
+		bw.Write(newLine)
+	} else {
+		bw.Write(headerConnectionKeepAlive)
+		bw.Write(newLine)
+	}
+	bw.Write(headerDate)
+	bw.Write(serverDate.Load().([]byte))
+	bw.Write(newLine)
+
+	if len(body) > 0 {
+		bw.Write(headerContentType)
+		bw.Write(headerContentTypeTextPlain)
+		bw.Write(newLine)
+		bw.Write(headerContentLength)
+		bw.Write(AppendUint(buf[:0], len(body)))
+		bw.Write(newLine)
+	}
+	bw.Write(newLine)
+	if len(body) > 0 {
+		bw.Write(body)
+	}
+}
+
+// AppendUint appends n to dst and returns the extended dst.
+func AppendUint(dst []byte, n int) []byte {
+	if n < 0 {
+		panic("BUG: int must be positive")
+	}
+
+	var b [20]byte
+	buf := b[:]
+	i := len(buf)
+	var q int
+	for n >= 10 {
+		i--
+		q = n / 10
+		buf[i] = '0' + byte(n-q*10)
+		n = q
+	}
+	i--
+	buf[i] = '0' + byte(n)
+
+	dst = append(dst, buf[i:]...)
+	return dst
+}
+
+func appendTime(b []byte, t time.Time) []byte {
+	const days = "SunMonTueWedThuFriSat"
+	const months = "JanFebMarAprMayJunJulAugSepOctNovDec"
+
+	t = t.UTC()
+	yy, mm, dd := t.Date()
+	hh, mn, ss := t.Clock()
+	day := days[3*t.Weekday():]
+	mon := months[3*(mm-1):]
+
+	return append(b,
+		day[0], day[1], day[2], ',', ' ',
+		byte('0'+dd/10), byte('0'+dd%10), ' ',
+		mon[0], mon[1], mon[2], ' ',
+		byte('0'+yy/1000), byte('0'+(yy/100)%10), byte('0'+(yy/10)%10), byte('0'+yy%10), ' ',
+		byte('0'+hh/10), byte('0'+hh%10), ':',
+		byte('0'+mn/10), byte('0'+mn%10), ':',
+		byte('0'+ss/10), byte('0'+ss%10), ' ',
+		'G', 'M', 'T')
+}
+
 
 // parsereq is a very simple http request parser. This operation
 // waits for the entire payload to be buffered before returning a

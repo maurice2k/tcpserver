@@ -43,6 +43,7 @@ type Server struct {
 	loops                int
 	wp                   *workerpool.WorkerPool
 	wpNumInstances       int
+	ballast				 [1024*1024*10]byte
 }
 
 // Connection struct embedding net.Conn
@@ -197,8 +198,6 @@ func (s *Server) Serve() error {
 		return fmt.Errorf("no valid listener found; call Listen() or ListenTLS() first")
 	}
 
-	loops := s.GetLoops()
-
 	s.wp = workerpool.NewWorkerPool(func(task workerpool.Task) {
 		s.serveConn(task.(net.Conn))
 	})
@@ -207,6 +206,7 @@ func (s *Server) Serve() error {
 	s.wp.Start()
 	defer s.wp.Stop()
 
+	loops := s.GetLoops()
 	errChan := make(chan error, loops)
 
 	for i := 0; i < loops; i++ {
@@ -324,13 +324,15 @@ func (s *Server) serveConn(conn net.Conn) {
 	var myConn *Connection
 	v := s.connStructPool.Get()
 	if v == nil {
-		myConn = new(Connection)
-		myConn.server = s
+		myConn = &Connection {
+			server: s,
+			Conn: conn,
+		}
 	} else {
 		myConn = v.(*Connection)
+		myConn.Conn = conn
 	}
 
-	myConn.Conn = conn
 	myConn.ts = time.Now()
 
 	s.requestHandler(myConn)
