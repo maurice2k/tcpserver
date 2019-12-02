@@ -43,7 +43,7 @@ type Server struct {
 	loops                int
 	wp                   *workerpool.WorkerPool
 	wpNumInstances       int
-	ballast				 [1024*1024*10]byte
+	ballast              [1024 * 1024 * 10]byte
 }
 
 // Connection struct embedding net.Conn
@@ -206,7 +206,7 @@ func (s *Server) Serve() error {
 	s.wp.Start()
 	defer s.wp.Stop()
 
-	loops := s.GetLoops()
+	loops := s.GetLoops()*2
 	errChan := make(chan error, loops)
 
 	for i := 0; i < loops; i++ {
@@ -243,6 +243,11 @@ func (s *Server) Serve() error {
 
 // Main accept loop
 func (s *Server) acceptLoop(id int) error {
+	if id == 0 {
+		fmt.Println("locking thread for #", id)
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+	}
 	var (
 		tempDelay time.Duration
 		conn      net.Conn
@@ -259,7 +264,7 @@ func (s *Server) acceptLoop(id int) error {
 			break
 		}
 
-		_ = s.listener.SetDeadline(time.Now().Add(1 * time.Second))
+		//_ = s.listener.SetDeadline(time.Now().Add(1 * time.Second))
 		conn, err = s.listener.Accept()
 		if err != nil {
 			if opErr, ok := err.(*net.OpError); ok {
@@ -314,7 +319,6 @@ func (s *Server) acceptLoop(id int) error {
 
 // Serve a single connection
 func (s *Server) serveConn(conn net.Conn) {
-	defer conn.Close()
 	atomic.AddInt32(&s.activeConnections, 1)
 
 	if s.tlsEnabled {
@@ -324,9 +328,9 @@ func (s *Server) serveConn(conn net.Conn) {
 	var myConn *Connection
 	v := s.connStructPool.Get()
 	if v == nil {
-		myConn = &Connection {
+		myConn = &Connection{
 			server: s,
-			Conn: conn,
+			Conn:   conn,
 		}
 	} else {
 		myConn = v.(*Connection)
@@ -336,10 +340,12 @@ func (s *Server) serveConn(conn net.Conn) {
 	myConn.ts = time.Now()
 
 	s.requestHandler(myConn)
-
-	myConn.ctx = nil
-	myConn.Conn = nil
-	s.connStructPool.Put(myConn)
+	go func() {
+		myConn.ctx = nil
+		myConn.Conn = nil
+		s.connStructPool.Put(myConn)
+	}()
+	conn.Close()
 
 	atomic.AddInt32(&s.activeConnections, -1)
 }
