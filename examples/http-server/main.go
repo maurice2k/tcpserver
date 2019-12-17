@@ -77,7 +77,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 		pprof.StartCPUProfile(cpuProfile)
 
-		time.Sleep(time.Second * 120)
+		time.Sleep(time.Second * 10)
 		fmt.Println("Writing cpu & mem profile...")
 
 		// Memory Profile

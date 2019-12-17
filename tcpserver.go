@@ -206,7 +206,7 @@ func (s *Server) Serve() error {
 	s.wp.Start()
 	defer s.wp.Stop()
 
-	loops := s.GetLoops()*2
+	loops := s.GetLoops()
 	errChan := make(chan error, loops)
 
 	for i := 0; i < loops; i++ {
@@ -243,11 +243,11 @@ func (s *Server) Serve() error {
 
 // Main accept loop
 func (s *Server) acceptLoop(id int) error {
-	if id == 0 {
+/*	if id == 0 {
 		fmt.Println("locking thread for #", id)
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
-	}
+	}*/
 	var (
 		tempDelay time.Duration
 		conn      net.Conn
@@ -411,7 +411,7 @@ func (s *Server) SetLoops(loops int) {
 // Returns number of accept loops (defaults to GOMAXPROCS)
 func (s *Server) GetLoops() int {
 	if s.loops < 1 {
-		s.loops = runtime.GOMAXPROCS(0)
+		s.loops = runtime.GOMAXPROCS(0)*2
 	}
 	return s.loops
 }
