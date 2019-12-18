@@ -136,6 +136,28 @@ func main() {
 		fmt.Printf(" - output sha256 of reponse\n")
 	}
 
+	for i := 0; i < 0; i++ {
+		go func() {
+			server, _ := tcpserver.NewServer(listenAddr)
+			server.SetListenConfig(&tcpserver.ListenConfig{
+				SocketReusePort:   true,
+				SocketFastOpen:    false,
+				SocketDeferAccept: false,
+			})
+			server.SetRequestHandler(requestHandlerSimple)
+			server.SetLoops(loops)
+			server.SetWorkerpoolInstances(wpinstances)
+			err := server.Listen()
+			if err != nil {
+				panic("Error listening on interface: " + err.Error())
+			}
+			err = server.Serve()
+			if err != nil {
+				panic("Error serving: " + err.Error())
+			}
+
+		}()
+	}
 
 	server, _ := tcpserver.NewServer(listenAddr)
 	server.SetListenConfig(&tcpserver.ListenConfig{

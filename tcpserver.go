@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/maurice2k/workerpool"
+	"github.com/panjf2000/ants/v2"
+
 )
 
 // Server struct
@@ -43,6 +45,7 @@ type Server struct {
 	loops                int
 	wp                   *workerpool.WorkerPool
 	wpNumInstances       int
+	ants                 *ants.PoolWithFunc
 	ballast              [1024 * 1024 * 10]byte
 }
 
@@ -202,11 +205,17 @@ func (s *Server) Serve() error {
 		s.serveConn(task.(net.Conn))
 	})
 
-	s.wp.SetNumInstances(s.GetWorkerpoolInstances())
+	s.ants, _ = ants.NewPoolWithFunc(10000000, func(task interface{}) {
+		s.serveConn(task.(net.Conn))
+	})
+
+	loops := s.GetLoops()
+
+	fmt.Println(loops)
+	s.wp.SetNumInstances(loops)
 	s.wp.Start()
 	defer s.wp.Stop()
 
-	loops := s.GetLoops()
 	errChan := make(chan error, loops)
 
 	for i := 0; i < loops; i++ {
@@ -243,7 +252,7 @@ func (s *Server) Serve() error {
 
 // Main accept loop
 func (s *Server) acceptLoop(id int) error {
-/*	if id == 0 {
+	/*	if id == 0 {
 		fmt.Println("locking thread for #", id)
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
@@ -311,7 +320,9 @@ func (s *Server) acceptLoop(id int) error {
 			continue
 		}
 
-		s.wp.AddTask(conn)
+		//s.wp.AddTaskForShardNoLock(id, conn)
+		//s.wp.AddTask(conn)
+		s.ants.Invoke(conn)
 		conn = nil
 	}
 	return nil
@@ -411,7 +422,7 @@ func (s *Server) SetLoops(loops int) {
 // Returns number of accept loops (defaults to GOMAXPROCS)
 func (s *Server) GetLoops() int {
 	if s.loops < 1 {
-		s.loops = runtime.GOMAXPROCS(0)*2
+		s.loops = runtime.GOMAXPROCS(0)
 	}
 	return s.loops
 }
