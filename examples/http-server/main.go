@@ -60,7 +60,7 @@ var sha bool
 var res string
 var resbytes []byte
 var loops int
-var wpinstances int
+var wpShards int
 
 var status200Ok = []byte("200 OK")
 var status500Error = []byte("500 Error")
@@ -111,8 +111,8 @@ func main() {
 	flag.BoolVar(&sha, "sha", false, "output sha256 instead of plain response")
 	flag.IntVar(&sleep, "sleep", 0, "sleep number of milliseconds per request")
 
-	flag.IntVar(&loops, "loops", 0, "number of accept loops")
-	flag.IntVar(&wpinstances, "wpinstances", 0, "number of workerpool instanes")
+	flag.IntVar(&loops, "loops", 0, "number of accept loops (defaults to GOMAXPROCS)")
+	flag.IntVar(&wpShards, "wpshards", 0, "number of workerpool shards (defaults to number of accept loops)")
 
 	flag.Parse()
 
@@ -146,7 +146,7 @@ func main() {
 			})
 			server.SetRequestHandler(requestHandlerSimple)
 			server.SetLoops(loops)
-			server.SetWorkerpoolInstances(wpinstances)
+			server.SetWorkerpoolShards(wpShards)
 			err := server.Listen()
 			if err != nil {
 				panic("Error listening on interface: " + err.Error())
@@ -167,7 +167,7 @@ func main() {
 	})
 	server.SetRequestHandler(requestHandlerSimple)
 	server.SetLoops(loops)
-	server.SetWorkerpoolInstances(wpinstances)
+	server.SetWorkerpoolShards(wpShards)
 	err := server.Listen()
 	if err != nil {
 		panic("Error listening on interface: " + err.Error())

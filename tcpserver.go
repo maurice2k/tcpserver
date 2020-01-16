@@ -21,8 +21,6 @@ import (
 	"time"
 
 	"github.com/maurice2k/workerpool"
-	"github.com/panjf2000/ants/v2"
-
 )
 
 // Server struct
@@ -44,8 +42,7 @@ type Server struct {
 	connStructPool       sync.Pool
 	loops                int
 	wp                   *workerpool.WorkerPool
-	wpNumInstances       int
-	ants                 *ants.PoolWithFunc
+	wpNumShards          int
 	ballast              [1024 * 1024 * 10]byte
 }
 
@@ -205,17 +202,11 @@ func (s *Server) Serve() error {
 		s.serveConn(task.(net.Conn))
 	})
 
-	s.ants, _ = ants.NewPoolWithFunc(10000000, func(task interface{}) {
-		s.serveConn(task.(net.Conn))
-	})
-
-	loops := s.GetLoops()
-
-	fmt.Println(loops)
-	s.wp.SetNumInstances(loops)
+	s.wp.SetNumShards(s.GetWorkerpoolShards())
 	s.wp.Start()
 	defer s.wp.Stop()
 
+	loops := s.GetLoops()
 	errChan := make(chan error, loops)
 
 	for i := 0; i < loops; i++ {
@@ -252,11 +243,6 @@ func (s *Server) Serve() error {
 
 // Main accept loop
 func (s *Server) acceptLoop(id int) error {
-	/*	if id == 0 {
-		fmt.Println("locking thread for #", id)
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
-	}*/
 	var (
 		tempDelay time.Duration
 		conn      net.Conn
@@ -320,10 +306,8 @@ func (s *Server) acceptLoop(id int) error {
 			continue
 		}
 
-		//s.wp.AddTaskForShardNoLock(id, conn)
-		//s.wp.AddTask(conn)
-		s.ants.Invoke(conn)
-		conn = nil
+		s.wp.AddTask(conn)
+		//conn = nil
 	}
 	return nil
 }
@@ -351,12 +335,12 @@ func (s *Server) serveConn(conn net.Conn) {
 	myConn.ts = time.Now()
 
 	s.requestHandler(myConn)
-	go func() {
+	conn.Close()
+	defer func() {
 		myConn.ctx = nil
 		myConn.Conn = nil
 		s.connStructPool.Put(myConn)
 	}()
-	conn.Close()
 
 	atomic.AddInt32(&s.activeConnections, -1)
 }
@@ -427,17 +411,17 @@ func (s *Server) GetLoops() int {
 	return s.loops
 }
 
-// Sets number of workerpool instances
-func (s *Server) SetWorkerpoolInstances(num int) {
-	s.wpNumInstances = num
+// Sets number of workerpool shards
+func (s *Server) SetWorkerpoolShards(num int) {
+	s.wpNumShards = num
 }
 
-// Returns number of workerpool instances
-func (s *Server) GetWorkerpoolInstances() int {
-	if s.wpNumInstances < 1 {
-		s.wpNumInstances = s.GetLoops()
+// Returns number of workerpool shards
+func (s *Server) GetWorkerpoolShards() int {
+	if s.wpNumShards < 1 {
+		s.wpNumShards = s.GetLoops()
 	}
-	return s.wpNumInstances
+	return s.wpNumShards
 }
 
 // Starts TLS inline
@@ -452,7 +436,7 @@ func (conn *Connection) StartTLS(config *tls.Config) error {
 	return nil
 }
 
-// Checks whethe rgiven net.TCPAddr is a IPv6 address
+// Checks whether given net.TCPAddr is a IPv6 address
 func IsIPv6Addr(addr *net.TCPAddr) bool {
 	return addr.IP.To4() == nil && len(addr.IP) == net.IPv6len
 }
