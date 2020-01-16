@@ -8,12 +8,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
-	"fmt"
 	"io"
 	"log"
-	"os"
 	"runtime"
-	"runtime/pprof"
 	"strings"
 	"time"
 
@@ -21,7 +18,7 @@ import (
 )
 
 func main() {
-	go func() {
+/*	go func() {
 		defer os.Exit(0)
 		cpuProfile, err := os.Create("fasthttp-cpu.prof")
 		if err != nil {
@@ -43,7 +40,7 @@ func main() {
 		if err := pprof.WriteHeapProfile(memProfile); err != nil {
 			log.Fatal(err)
 		}
-	}()
+	}()*/
 	var res string
 	var listenAddr string
 	var aaaa int

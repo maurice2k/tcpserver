@@ -20,7 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/maurice2k/workerpool"
+	"github.com/maurice2k/ultrapool"
 )
 
 // Server struct
@@ -41,7 +41,7 @@ type Server struct {
 	connWaitGroup        sync.WaitGroup
 	connStructPool       sync.Pool
 	loops                int
-	wp                   *workerpool.WorkerPool
+	wp                   *ultrapool.WorkerPool
 	wpNumShards          int
 	ballast              [1024 * 1024 * 10]byte
 }
@@ -192,7 +192,7 @@ func (s *Server) Serve() error {
 		return fmt.Errorf("no valid listener found; call Listen() or ListenTLS() first")
 	}
 
-	s.wp = workerpool.NewWorkerPool(func(task workerpool.Task) {
+	s.wp = ultrapool.NewWorkerPool(func(task ultrapool.Task) {
 		s.serveConn(task.(net.Conn))
 	})
 
