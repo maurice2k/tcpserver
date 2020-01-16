@@ -153,6 +153,8 @@ var headerDate = []byte("Date: ")
 var headerConnectionClose = []byte("Connection: close")
 var headerServerIdentity = []byte("Server: evio")
 var headerContentLength = []byte("Content-Length: ")
+var headerContentType = []byte("Content-Type: ")
+var headerContentTypeTextPlain = []byte("text/plain")
 var newLine = []byte("\r\n")
 
 // appendresp will append a valid http response to the provide bytes.
@@ -173,6 +175,9 @@ func appendresp(b []byte, status, head, body []byte) []byte {
 	b = time.Now().AppendFormat(b, "Mon, 02 Jan 2006 15:04:05 GMT")
 	b = append(b, newLine...)
 	if len(body) > 0 {
+		b = append(b, headerContentType...)
+		b = append(b, headerContentTypeTextPlain...)
+		b = append(b, newLine...)
 		b = append(b, headerContentLength...)
 		b = strconv.AppendInt(b, int64(len(body)), 10)
 		b = append(b, newLine...)
