@@ -15,7 +15,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -46,6 +48,30 @@ var status500Error = []byte("500 Error")
 var aesKey = []byte("0123456789ABCDEF")
 
 func main() {
+	go func() {
+		defer os.Exit(0)
+		cpuProfile, err := os.Create("evio-cpu.prof")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer pprof.StopCPUProfile()
+		pprof.StartCPUProfile(cpuProfile)
+
+		time.Sleep(time.Second * 10)
+		fmt.Println("Writing cpu & mem profile...")
+
+		// Memory Profile
+		memProfile, err := os.Create("evio-mem.prof")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer memProfile.Close()
+		runtime.GC()
+		if err := pprof.WriteHeapProfile(memProfile); err != nil {
+			log.Fatal(err)
+		}
+	}()/**/
+
 	var loops int
 	var aaaa int
 	var unixsocket string

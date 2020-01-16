@@ -32,7 +32,7 @@ ps a |grep "[t]est_http_server" |awk '{print $1}' |xargs -I{} kill -9 {}
 
 run_server() {
     echo "Starting server: $2"
-    eval "GOMAXPROCS=$1 $2 &"
+    eval "GOMAXPROCS=$1 numactl -N0 $2 &"
     pid=$!
 }
 
@@ -49,7 +49,7 @@ test_http_server() {
     killall -9 test_http_server 2>/dev/null
 
     echo "Building $1"
-    go build -o test_http_server $1
+    go build -mod vendor -o test_http_server $1
 
     start_cpu=1
     exact=0
@@ -92,7 +92,7 @@ test_http_server() {
         done
 
         used_cpus+=($i)
-        results+=(`GOGC=400 $bombardier -c $conns -d ${duration}s $3 --fasthttp |grep -o 'Reqs/sec.*' |awk '{print $2}'`)
+        results+=(`GOGC=400 numactl -N1 $bombardier -c $conns -d ${duration}s $3 --fasthttp |tee /dev/fd/2 |grep -o 'Reqs/sec.*' |awk '{print $2}'`)
 
         kill_server
     done
