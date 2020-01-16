@@ -2,7 +2,7 @@
 // IPv6 capable TCP server with TLS support, graceful shutdown and some
 // TCP tuning options like TCP_FASTOPEN, SO_RESUSEPORT and TCP_DEFER_ACCEPT.
 //
-// Copyright 2019 Moritz Fain
+// Copyright 2019-2020 Moritz Fain
 // Moritz Fain <moritz@fain.io>
 //
 // Source available at github.com/maurice2k/tcpserver,
@@ -27,7 +27,7 @@ import (
 type Server struct {
 	noCopy               noCopy
 	listenAddr           *net.TCPAddr
-	listener             advancedListener
+	listener             *net.TCPListener
 	shutdown             bool
 	shutdownDeadline     time.Time
 	requestHandler       RequestHandlerFunc
@@ -77,12 +77,6 @@ type RequestHandlerFunc func(conn *Connection)
 
 var defaultListenConfig *ListenConfig = &ListenConfig{
 	SocketReusePort: true,
-}
-
-// net.TCPListener satisfies advancedListener interface
-type advancedListener interface {
-	net.Listener
-	SetDeadline(t time.Time) error
 }
 
 // Creates a new server instance
@@ -259,8 +253,7 @@ func (s *Server) acceptLoop(id int) error {
 			break
 		}
 
-		//_ = s.listener.SetDeadline(time.Now().Add(1 * time.Second))
-		conn, err = s.listener.Accept()
+		conn, err = s.listener.AcceptTCP()
 		if err != nil {
 			if opErr, ok := err.(*net.OpError); ok {
 
@@ -307,7 +300,7 @@ func (s *Server) acceptLoop(id int) error {
 		}
 
 		s.wp.AddTask(conn)
-		//conn = nil
+		conn = nil
 	}
 	return nil
 }
@@ -336,11 +329,11 @@ func (s *Server) serveConn(conn net.Conn) {
 
 	s.requestHandler(myConn)
 	conn.Close()
-	defer func() {
+	//defer func() {
 		myConn.ctx = nil
 		myConn.Conn = nil
 		s.connStructPool.Put(myConn)
-	}()
+	//}()
 
 	atomic.AddInt32(&s.activeConnections, -1)
 }
