@@ -11,11 +11,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
-	"os"
 	"reflect"
 	"runtime"
-	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -68,7 +65,7 @@ var status500Error = []byte("500 Error")
 var aesKey = []byte("0123456789ABCDEF")
 
 func main() {
-	go func() {
+	/*go func() {
 		defer os.Exit(0)
 		cpuProfile, err := os.Create("tcpserver-cpu.prof")
 		if err != nil {
