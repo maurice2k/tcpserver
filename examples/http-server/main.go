@@ -203,8 +203,6 @@ func releaseWriter(bw *bufio.Writer) {
 	bwPool.Put(bw)
 }
 
-
-
 func requestHandler(conn *tcpserver.Connection) {
 	var leftover []byte
 	var bw *bufio.Writer

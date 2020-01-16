@@ -50,38 +50,63 @@ type httpServer struct {
 	*gnet.EventServer
 }
 
+type httpCodec struct {
+	req request
+}
+
+var errMsg = "Internal Server Error"
+var errMsgBytes = []byte(errMsg)
+
+
+func (hc *httpCodec) Encode(c gnet.Conn, buf []byte) (out []byte, err error) {
+	if c.Context() == nil {
+		return appendresp(out, status200Ok, nil, buf), nil
+	}
+	return appendresp(out, status500Error, nil, []byte(errMsg+"\n")), nil
+}
+
+func (hc *httpCodec) Decode(c gnet.Conn) ([]byte, error) {
+	buf := c.Read()
+	// process the pipeline
+	leftover, err := parsereq(buf, &hc.req)
+	// bad thing happened
+	if err != nil {
+		c.SetContext(err)
+		return nil, err
+	} else if len(leftover) == len(buf) {
+		// request not ready, yet
+		return nil, nil
+	}
+	c.ResetBuffer()
+	return buf, nil
+}
+
+
 func (hs *httpServer) OnInitComplete(srv gnet.Server) (action gnet.Action) {
 	log.Printf("http server using gnet started on %s with GOMAXPROCS=%d (loops: %d)", listenAddr, runtime.GOMAXPROCS(0), srv.NumLoops)
 	return
 }
 
-func (hs *httpServer) React(c gnet.Conn) (out []byte, action gnet.Action) {
-	data := c.Read()
+func (hs *httpServer) React(frame []byte, c gnet.Conn) (out []byte, action gnet.Action) {
 	// process the pipeline
-	var req request
-	leftover, err := parsereq(data, &req)
-	if err != nil {
+	if c.Context() != nil {
 		// bad thing happened
-		out = appendresp(out, status500Error, nil, []byte(err.Error()+"\n"))
-		c.ResetBuffer()
+		out = errMsgBytes
 		action = gnet.Close
 		return
-	} else if len(leftover) == len(data) {
-		// request not ready, yet
-		return
 	}
+
 	// handle the request
 	if aes128 {
 		cryptedResbytes, _ := encryptCBC(resbytes, aesKey)
-		out = appendresp(out, status200Ok, nil, cryptedResbytes)
+		out = cryptedResbytes
 	} else if sha {
 		sha256sum := sha256.Sum256(resbytes)
-		out = appendresp(out, status200Ok, nil, []byte(hex.EncodeToString(sha256sum[:])))
+		out = []byte(hex.EncodeToString(sha256sum[:]))
 	} else {
-		out = appendresp(out, status200Ok, nil, resbytes)
+		out = resbytes
 	}
 
-	data = leftover
 	if sleep > 0 {
 		time.Sleep(time.Millisecond * time.Duration(sleep))
 	}
@@ -89,7 +114,6 @@ func (hs *httpServer) React(c gnet.Conn) (out []byte, action gnet.Action) {
 	if !keepAlive {
 		action = gnet.Close
 	}
-	c.ResetBuffer()
 	return
 }
 
@@ -118,10 +142,11 @@ func main() {
 
 	resbytes = []byte(res)
 
-	http := &httpServer{}
-	// We at least want the single http address.
+	http := new(httpServer)
+	hc := new(httpCodec)
+
 	// Start serving!
-	log.Fatal(gnet.Serve(http, "tcp://"+listenAddr, gnet.WithMulticore(true)))
+	log.Fatal(gnet.Serve(http, "tcp://"+listenAddr, gnet.WithMulticore(true), gnet.WithCodec(hc)))
 
 }
 
