@@ -260,25 +260,25 @@ run_test5() {
 
 
 run_test6() {
-    echo "====[ Running test #6: HTTP returning 8192 byte, ${conns} concurrent connections, keepalive on ]===="
+    echo "====[ Running test #6: HTTP returning 16384 byte, ${conns} concurrent connections, keepalive off ]===="
 
-    test_http_server 'net-http-server/main.go' '-keepalive=1 -listen=127.0.0.60:8080 -aaaa=8192 -sleep=0' 'http://127.0.0.60:8080/'
+    test_http_server 'net-http-server/main.go' '-keepalive=0 -listen=127.0.0.60:8080 -aaaa=16384 -sleep=0' 'http://127.0.0.60:8080/'
     results_net=("${results[@]}")
     echo ""
 
-    test_http_server 'evio-http-server/main.go' '-keepalive=1 -listen=127.0.0.61:8080 -aaaa=8192 -sleep=0 -loops=-1' 'http://127.0.0.61:8080/'
+    test_http_server 'evio-http-server/main.go' '-keepalive=0 -listen=127.0.0.61:8080 -aaaa=16384 -sleep=0 -loops=-1' 'http://127.0.0.61:8080/'
     results_evio=("${results[@]}")
     echo ""
 
-    test_http_server 'gnet-http-server/main.go' '-keepalive=1 -listen=127.0.0.62:8080 -aaaa=8192 -sleep=0 -loops=-1' 'http://127.0.0.62:8080/'
+    test_http_server 'gnet-http-server/main.go' '-keepalive=0 -listen=127.0.0.62:8080 -aaaa=16384 -sleep=0 -loops=-1' 'http://127.0.0.62:8080/'
     results_gnet=("${results[@]}")
     echo ""
 
-    test_http_server 'fasthttp-http-server/main.go' '-keepalive=1 -listen=127.0.0.63:8080 -aaaa=8192 -sleep=0' 'http://127.0.0.63:8080/'
+    test_http_server 'fasthttp-http-server/main.go' '-keepalive=0 -listen=127.0.0.63:8080 -aaaa=16384 -sleep=0' 'http://127.0.0.63:8080/'
     results_fasthttp=("${results[@]}")
     echo ""
 
-    test_http_server '../examples/http-server/main.go' '-keepalive=1 -listen=127.0.0.64:8080 -aaaa=8192 -sleep=0' 'http://127.0.0.64:8080/'
+    test_http_server '../examples/http-server/main.go' '-keepalive=0 -listen=127.0.0.64:8080 -aaaa=16384 -sleep=0' 'http://127.0.0.64:8080/'
     results_tcpserver=("${results[@]}")
     echo ""
 

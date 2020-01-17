@@ -96,6 +96,10 @@ func (hs *httpServer) React(frame []byte, c gnet.Conn) (out []byte, action gnet.
 		return
 	}
 
+	if sleep > 0 {
+		time.Sleep(time.Millisecond * time.Duration(sleep))
+	}
+
 	// handle the request
 	if aes128 {
 		cryptedResbytes, _ := encryptCBC(resbytes, aesKey)
@@ -105,10 +109,6 @@ func (hs *httpServer) React(frame []byte, c gnet.Conn) (out []byte, action gnet.
 		out = []byte(hex.EncodeToString(sha256sum[:]))
 	} else {
 		out = resbytes
-	}
-
-	if sleep > 0 {
-		time.Sleep(time.Millisecond * time.Duration(sleep))
 	}
 
 	if !keepAlive {
