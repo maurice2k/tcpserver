@@ -196,7 +196,7 @@ func (s *Server) Serve() error {
 		s.serveConn(task.(net.Conn))
 	})
 
-	s.wp.SetNumShards(2)
+	//s.wp.SetNumShards(2)
 	s.wp.Start()
 	defer s.wp.Stop()
 
@@ -299,8 +299,8 @@ func (s *Server) acceptLoop(id int) error {
 			continue
 		}
 
-		//s.wp.AddTask(conn)
-		go s.serveConn(conn)
+		s.wp.AddTask(conn)
+		//go s.serveConn(conn)
 		conn = nil
 	}
 	return nil

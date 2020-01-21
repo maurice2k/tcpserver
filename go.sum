@@ -16,6 +16,8 @@ github.com/maurice2k/ultrapool v0.0.0-20200116130404-b4f8de067c4f h1:HngDnA0OI5t
 github.com/maurice2k/ultrapool v0.0.0-20200116130404-b4f8de067c4f/go.mod h1:n8UBAqdc5c/tvoQkLfWjB7bIM3LwoUegy6tAvOC1fII=
 github.com/maurice2k/ultrapool v0.0.0-20200121135534-b0493986dd62 h1:YNHtZM65D5oPvvHgld/ThgINewpt8erUgIbJi7lmmv8=
 github.com/maurice2k/ultrapool v0.0.0-20200121135534-b0493986dd62/go.mod h1:T1Zk+TS9BRpq3X9J7uLaPhWd2mbikGFuqNA9UqQ/MqA=
+github.com/maurice2k/ultrapool v0.0.0-20200121160752-00f561a9fc99 h1:q6LvYw58p0Qa4UNDf3+59JMKNtJdEnDhKCptGe3GSzo=
+github.com/maurice2k/ultrapool v0.0.0-20200121160752-00f561a9fc99/go.mod h1:T1Zk+TS9BRpq3X9J7uLaPhWd2mbikGFuqNA9UqQ/MqA=
 github.com/panjf2000/ants/v2 v2.2.2 h1:TWzusBjq/IflXhy+/S6u5wmMLCBdJnB9tPIx9Zmhvok=
 github.com/panjf2000/ants/v2 v2.2.2/go.mod h1:1GFm8bV8nyCQvU5K4WvBCTG1/YBFOD2VzjffD8fV55A=
 github.com/panjf2000/gnet v1.0.0-rc.5 h1:EcFAcBmKn5isLD0oL4lDAzawgST3OpCEDlFAnL6Atj0=
