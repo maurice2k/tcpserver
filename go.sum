@@ -1,5 +1,7 @@
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/gammazero/deque v0.0.0-20190521012701-46e4ffb7a622/go.mod h1:D90+MBHVc9Sk1lJAbEVgws0eYEurY4mv2TDso3Nxh3w=
+github.com/gammazero/workerpool v0.0.0-20200108033143-79b2336fad7a/go.mod h1:ZObaTlXZGgqKXhhlk+zNvSOXT+h6VGThA0ZQxLqn8x0=
 github.com/kavu/go_reuseport v1.4.0 h1:YIp/96RZ3sJfn0LN+FFkkXIq3H3dfVOdRUtNejhDcxc=
 github.com/kavu/go_reuseport v1.4.0/go.mod h1:CG8Ee7ceMFSMnx/xr25Vm0qXaj2Z4i5PWoUx+JZ5/CU=
 github.com/klauspost/compress v1.8.2 h1:Bx0qjetmNjdFXASH02NSAREKpiaDwkO1DRZ3dV2KCcs=
@@ -12,6 +14,8 @@ github.com/libp2p/go-reuseport v0.0.1 h1:7PhkfH73VXfPJYKQ6JwS5I/eVcoyYi9IMNGc6FW
 github.com/libp2p/go-reuseport v0.0.1/go.mod h1:jn6RmB1ufnQwl0Q1f+YxAj8isJgDCQzaaxIFYDhcYEA=
 github.com/maurice2k/ultrapool v0.0.0-20200116130404-b4f8de067c4f h1:HngDnA0OI5t1CG23ORiEYKJzyH+jNOAwHVj6cPz6Rz8=
 github.com/maurice2k/ultrapool v0.0.0-20200116130404-b4f8de067c4f/go.mod h1:n8UBAqdc5c/tvoQkLfWjB7bIM3LwoUegy6tAvOC1fII=
+github.com/maurice2k/ultrapool v0.0.0-20200121135534-b0493986dd62 h1:YNHtZM65D5oPvvHgld/ThgINewpt8erUgIbJi7lmmv8=
+github.com/maurice2k/ultrapool v0.0.0-20200121135534-b0493986dd62/go.mod h1:T1Zk+TS9BRpq3X9J7uLaPhWd2mbikGFuqNA9UqQ/MqA=
 github.com/panjf2000/ants/v2 v2.2.2 h1:TWzusBjq/IflXhy+/S6u5wmMLCBdJnB9tPIx9Zmhvok=
 github.com/panjf2000/ants/v2 v2.2.2/go.mod h1:1GFm8bV8nyCQvU5K4WvBCTG1/YBFOD2VzjffD8fV55A=
 github.com/panjf2000/gnet v1.0.0-rc.5 h1:EcFAcBmKn5isLD0oL4lDAzawgST3OpCEDlFAnL6Atj0=

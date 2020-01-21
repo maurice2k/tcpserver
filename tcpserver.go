@@ -196,7 +196,7 @@ func (s *Server) Serve() error {
 		s.serveConn(task.(net.Conn))
 	})
 
-	s.wp.SetNumShards(s.GetWorkerpoolShards())
+	s.wp.SetNumShards(2)
 	s.wp.Start()
 	defer s.wp.Stop()
 
@@ -299,7 +299,8 @@ func (s *Server) acceptLoop(id int) error {
 			continue
 		}
 
-		s.wp.AddTask(conn)
+		//s.wp.AddTask(conn)
+		go s.serveConn(conn)
 		conn = nil
 	}
 	return nil
@@ -329,11 +330,9 @@ func (s *Server) serveConn(conn net.Conn) {
 
 	s.requestHandler(myConn)
 	conn.Close()
-	//defer func() {
-		myConn.ctx = nil
-		myConn.Conn = nil
-		s.connStructPool.Put(myConn)
-	//}()
+	myConn.ctx = nil
+	myConn.Conn = nil
+	s.connStructPool.Put(myConn)
 
 	atomic.AddInt32(&s.activeConnections, -1)
 }
