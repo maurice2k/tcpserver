@@ -52,6 +52,7 @@ type Connection struct {
 	server *Server
 	ctx    *context.Context
 	ts     time.Time
+	_cacheLinePadding [8]byte
 }
 
 // Listener config struct
@@ -196,7 +197,7 @@ func (s *Server) Serve() error {
 		s.serveConn(task.(net.Conn))
 	})
 
-	//s.wp.SetNumShards(2)
+	s.wp.SetNumShards(s.GetWorkerpoolShards())
 	s.wp.Start()
 	defer s.wp.Stop()
 
@@ -408,10 +409,10 @@ func (s *Server) SetWorkerpoolShards(num int) {
 	s.wpNumShards = num
 }
 
-// Returns number of workerpool shards
+// Returns number of workerpool shards (defaults to GetLoops() * 2)
 func (s *Server) GetWorkerpoolShards() int {
 	if s.wpNumShards < 1 {
-		s.wpNumShards = s.GetLoops()
+		s.wpNumShards = s.GetLoops() * 2
 	}
 	return s.wpNumShards
 }
