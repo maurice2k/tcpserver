@@ -25,7 +25,6 @@ import (
 
 // Server struct
 type Server struct {
-	noCopy               noCopy
 	listenAddr           *net.TCPAddr
 	listener             *net.TCPListener
 	shutdown             bool
@@ -33,8 +32,8 @@ type Server struct {
 	requestHandler       RequestHandlerFunc
 	ctx                  *context.Context
 	activeConnections    int32
-	maxAcceptConnections int64
-	acceptedConnections  int64
+	maxAcceptConnections int32
+	acceptedConnections  int32
 	tlsConfig            *tls.Config
 	tlsEnabled           bool
 	listenConfig         *ListenConfig
@@ -49,10 +48,10 @@ type Server struct {
 // Connection struct embedding net.Conn
 type Connection struct {
 	net.Conn
-	server *Server
-	ctx    *context.Context
-	ts     time.Time
-	_cacheLinePadding [8]byte
+	server            *Server
+	ctx               *context.Context
+	ts                int64
+	_cacheLinePadding [24]byte
 }
 
 // Listener config struct
@@ -86,10 +85,21 @@ func NewServer(listenAddr string) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error resolving address '%s': %s", listenAddr, err)
 	}
-	return &Server{
+	var s *Server
+
+	s = &Server{
 		listenAddr:   la,
 		listenConfig: defaultListenConfig,
-	}, nil
+		connStructPool: sync.Pool{
+			New: func() interface{} {
+				return &Connection{
+					server: s,
+				}
+			},
+		},
+	}
+
+	return s, nil
 }
 
 // Sets TLS config but does not enable TLS yet. TLS can be either enabled
@@ -145,8 +155,8 @@ func (s *Server) ListenTLS() (err error) {
 
 // Sets maximum number of connections that are being accepted before the
 // server automatically shutdowns
-func (s *Server) SetMaxAcceptConnections(limit int64) {
-	atomic.StoreInt64(&s.maxAcceptConnections, limit)
+func (s *Server) SetMaxAcceptConnections(limit int32) {
+	atomic.StoreInt32(&s.maxAcceptConnections, limit)
 }
 
 // Returns number of currently active connections
@@ -155,7 +165,7 @@ func (s *Server) GetActiveConnections() int32 {
 }
 
 // Returns number of accepted connections
-func (s *Server) GetAcceptedConnections() int64 {
+func (s *Server) GetAcceptedConnections() int32 {
 	return s.acceptedConnections
 }
 
@@ -193,10 +203,7 @@ func (s *Server) Serve() error {
 		return fmt.Errorf("no valid listener found; call Listen() or ListenTLS() first")
 	}
 
-	s.wp = ultrapool.NewWorkerPool(func(task ultrapool.Task) {
-		s.serveConn(task.(net.Conn))
-	})
-
+	s.wp = ultrapool.NewWorkerPool(s.serveConn)
 	s.wp.SetNumShards(s.GetWorkerpoolShards())
 	s.wp.Start()
 	defer s.wp.Stop()
@@ -240,7 +247,8 @@ func (s *Server) Serve() error {
 func (s *Server) acceptLoop(id int) error {
 	var (
 		tempDelay time.Duration
-		conn      net.Conn
+		tcpConn   net.Conn
+		conn      *Connection
 		err       error
 	)
 
@@ -254,7 +262,7 @@ func (s *Server) acceptLoop(id int) error {
 			break
 		}
 
-		conn, err = s.listener.AcceptTCP()
+		tcpConn, err = s.listener.AcceptTCP()
 		if err != nil {
 			if opErr, ok := err.(*net.OpError); ok {
 
@@ -290,50 +298,42 @@ func (s *Server) acceptLoop(id int) error {
 
 		tempDelay = 0
 
-		newAcceptedConns := atomic.AddInt64(&s.acceptedConnections, 1)
+		newAcceptedConns := atomic.AddInt32(&s.acceptedConnections, 1)
 		if s.maxAcceptConnections > 0 && newAcceptedConns > s.maxAcceptConnections {
 			// We have accepted too much connections which might happen due to
 			// the fact that we use multiple accept loops without locking.
 			// In this case we just close the connection (we shouldn't have accepted
 			// in the first place) and continue for shutting down the server.
-			conn.Close()
+			tcpConn.Close()
 			continue
 		}
 
+		conn = s.connStructPool.Get().(*Connection)
+		conn.Conn = tcpConn
+
 		s.wp.AddTask(conn)
-		//go s.serveConn(conn)
-		conn = nil
+		//go s.serveConn(tcpConn)
+		tcpConn = nil
 	}
 	return nil
 }
 
-// Serve a single connection
-func (s *Server) serveConn(conn net.Conn) {
+// Serve a single connection (called from ultrapool)
+func (s *Server) serveConn(task ultrapool.Task) {
+	conn := task.(*Connection)
 	atomic.AddInt32(&s.activeConnections, 1)
 
 	if s.tlsEnabled {
-		conn = tls.Server(conn, s.GetTLSConfig())
+		conn.Conn = tls.Server(conn.Conn, s.GetTLSConfig())
 	}
 
-	var myConn *Connection
-	v := s.connStructPool.Get()
-	if v == nil {
-		myConn = &Connection{
-			server: s,
-			Conn:   conn,
-		}
-	} else {
-		myConn = v.(*Connection)
-		myConn.Conn = conn
-	}
-
-	myConn.ts = time.Now()
-
-	s.requestHandler(myConn)
+	conn.ts = time.Now().UnixNano()
+	s.requestHandler(conn)
 	conn.Close()
-	myConn.ctx = nil
-	myConn.Conn = nil
-	s.connStructPool.Put(myConn)
+
+	conn.ctx = nil
+	conn.Conn = nil
+	s.connStructPool.Put(conn)
 
 	atomic.AddInt32(&s.activeConnections, -1)
 }
@@ -374,7 +374,7 @@ func (conn *Connection) GetServerAddr() *net.TCPAddr {
 
 // Returns start timestamp
 func (conn *Connection) GetStartTime() time.Time {
-	return conn.ts
+	return time.Unix(conn.ts/1e9, conn.ts%1e9)
 }
 
 // Sets context to the connection that is later passed to the handleRequest method
@@ -409,10 +409,10 @@ func (s *Server) SetWorkerpoolShards(num int) {
 	s.wpNumShards = num
 }
 
-// Returns number of workerpool shards (defaults to GetLoops() * 2)
+// Returns number of workerpool shards (defaults to GOMAXPROCS * 2)
 func (s *Server) GetWorkerpoolShards() int {
 	if s.wpNumShards < 1 {
-		s.wpNumShards = s.GetLoops() * 2
+		s.wpNumShards = runtime.GOMAXPROCS(0) * 2
 	}
 	return s.wpNumShards
 }
@@ -433,8 +433,3 @@ func (conn *Connection) StartTLS(config *tls.Config) error {
 func IsIPv6Addr(addr *net.TCPAddr) bool {
 	return addr.IP.To4() == nil && len(addr.IP) == net.IPv6len
 }
-
-type noCopy struct{}
-
-func (*noCopy) Lock()   {}
-func (*noCopy) Unlock() {}
