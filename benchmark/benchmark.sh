@@ -112,14 +112,12 @@ test_http_server() {
 plot_results() {
     echo -e "GOMAXPROCS\tnet/http\tevio\tgnet\tfasthttp\ttcpserver" >$1-results.dat
 
-      for ((i=0; i<${#used_cpus[@]}; i++))
-      do
-          echo -e "${used_cpus[$i]}\t${results_net[$i]}\t${results_evio[$i]}\t${results_gnet[$i]}\t${results_fasthttp[$i]}\t${results_tcpserver[$i]}" >>$1-results.dat
-      done
+    for ((i=0; i<${#used_cpus[@]}; i++))
+    do
+        echo -e "${used_cpus[$i]}\t${results_net[$i]}\t${results_evio[$i]}\t${results_gnet[$i]}\t${results_fasthttp[$i]}\t${results_tcpserver[$i]}" >>$1-results.dat
+    done
 
-
-    gnuplot -e "results='$1-results.dat'" plotter.txt
-    mv graph.png "$1-graph.png"
+    gnuplot -e "testcase='$1'" plotter.txt
 }
 
 
@@ -298,7 +296,7 @@ run_test6() {
 
 run_install() {
     pwd=`pwd`
-    sudo apt install gnuplot git jq mc screen pv -y
+    sudo apt install gnuplot git jq mc screen pv numactl -y
     cd /opt
     sudo wget https://dl.google.com/go/go1.14.linux-amd64.tar.gz ; sudo tar xzf go1.14.*tar.gz
     echo "export PATH=/opt/go/bin:$PATH" >> ~/.profile

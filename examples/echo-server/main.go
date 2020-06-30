@@ -62,7 +62,7 @@ func main() {
 	}
 }
 
-func requestHandler(conn *tcpserver.Connection) {
+func requestHandler(conn *tcpserver.TCPConn) {
 	if zeroCopy {
 		// automatically uses zero copy if conn.Conn is of type net.TCPConn,
 		// otherwise does a normal user space copy

@@ -25,7 +25,7 @@ server.SetRequestHandler(requestHandler)
 server.Listen()
 server.Serve()
 
-func requestHandler(conn *tcpserver.Connection) {
+func requestHandler(conn *tcpserver.TCPConn) {
     io.Copy(conn.Conn.(*net.TCPConn), conn.Conn.(*net.TCPConn))
 }
 ```

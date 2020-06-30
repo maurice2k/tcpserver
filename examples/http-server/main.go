@@ -175,7 +175,7 @@ func main() {
 	}
 }
 
-func acquireReader(conn *tcpserver.Connection) *bufio.Reader {
+func acquireReader(conn tcpserver.Connection) *bufio.Reader {
 	v:= brPool.Get()
 	if v == nil {
 		return bufio.NewReader(conn)
@@ -189,7 +189,7 @@ func releaseReader(br *bufio.Reader) {
 	brPool.Put(br)
 }
 
-func acquireWriter(conn *tcpserver.Connection) *bufio.Writer {
+func acquireWriter(conn tcpserver.Connection) *bufio.Writer {
 	v:= bwPool.Get()
 	if v == nil {
 		return bufio.NewWriter(conn)
@@ -203,7 +203,12 @@ func releaseWriter(bw *bufio.Writer) {
 	bwPool.Put(bw)
 }
 
-func requestHandler(conn *tcpserver.Connection) {
+type myConn struct {
+	tcpserver.TCPConn
+	nasty int
+}
+
+func requestHandler(conn *myConn) {
 	var leftover []byte
 	var bw *bufio.Writer
 
@@ -268,7 +273,7 @@ func requestHandler(conn *tcpserver.Connection) {
 	return
 }
 
-func requestHandlerSimple(conn *tcpserver.Connection) {
+func requestHandlerSimple(conn tcpserver.Connection) {
 	var leftover []byte
 
 	rv := reqVarsPool.Get().(*reqVars)

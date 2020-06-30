@@ -83,7 +83,7 @@ func (hc *httpCodec) Decode(c gnet.Conn) ([]byte, error) {
 
 
 func (hs *httpServer) OnInitComplete(srv gnet.Server) (action gnet.Action) {
-	log.Printf("http server using gnet started on %s with GOMAXPROCS=%d (loops: %d)", listenAddr, runtime.GOMAXPROCS(0), srv.NumLoops)
+	log.Printf("http server using gnet started on %s with GOMAXPROCS=%d (loops: %d)", listenAddr, runtime.GOMAXPROCS(0), srv.NumEventLoop)
 	return
 }
 

@@ -30,6 +30,7 @@ type Server struct {
 	shutdown             bool
 	shutdownDeadline     time.Time
 	requestHandler       RequestHandlerFunc
+	connectionCreator    ConnectionCreatorFunc
 	ctx                  *context.Context
 	activeConnections    int32
 	maxAcceptConnections int32
@@ -42,11 +43,26 @@ type Server struct {
 	loops                int
 	wp                   *ultrapool.WorkerPool
 	wpNumShards          int
-	ballast              [1024 * 1024 * 20]byte
+	ballast              []byte
 }
 
-// Connection struct embedding net.Conn
-type Connection struct {
+// Connection interface
+type Connection interface {
+	net.Conn
+	SetServer(server *Server)
+	Reset(netConn net.Conn)
+
+	GetServer() *Server
+	GetClientAddr() *net.TCPAddr
+	GetServerAddr() *net.TCPAddr
+	GetStartTime() time.Time
+	SetContext(ctx *context.Context)
+	GetContext() *context.Context
+	Start()
+}
+
+// TCPConn struct implementing Connection and embedding net.Conn
+type TCPConn struct {
 	net.Conn
 	server            *Server
 	ctx               *context.Context
@@ -73,7 +89,10 @@ type ListenConfig struct {
 }
 
 // Request handler function type
-type RequestHandlerFunc func(conn *Connection)
+type RequestHandlerFunc func(conn Connection)
+
+// Connection creator function
+type ConnectionCreatorFunc func() Connection
 
 var defaultListenConfig *ListenConfig = &ListenConfig{
 	SocketReusePort: true,
@@ -92,12 +111,18 @@ func NewServer(listenAddr string) (*Server, error) {
 		listenConfig: defaultListenConfig,
 		connStructPool: sync.Pool{
 			New: func() interface{} {
-				return &Connection{
-					server: s,
-				}
+				conn := s.connectionCreator()
+				conn.SetServer(s)
+				return conn
 			},
 		},
 	}
+
+	s.connectionCreator = func() Connection {
+		return &TCPConn{}
+	}
+
+	s.SetBallast(20)
 
 	return s, nil
 }
@@ -244,12 +269,74 @@ func (s *Server) Serve() error {
 	return nil
 }
 
+// Sets a connection creator function
+// This can be used to created custom Connection implementations
+func (s *Server) SetConnectionCreator(f ConnectionCreatorFunc) {
+	s.connectionCreator = f
+}
+
+// Sets request handler function
+func (s *Server) SetRequestHandler(f RequestHandlerFunc) {
+	s.requestHandler = f
+}
+
+// Sets context to the server that is later passed to the handleRequest method
+func (s *Server) SetContext(ctx *context.Context) {
+	s.ctx = ctx
+}
+
+// Returns server's context or creates a new one if none is present
+func (s *Server) GetContext() *context.Context {
+	if s.ctx == nil {
+		ctx := context.Background()
+		s.ctx = &ctx
+	}
+	return s.ctx
+}
+
+// Sets number of accept loops
+func (s *Server) SetLoops(loops int) {
+	s.loops = loops
+}
+
+// Returns number of accept loops (defaults to 4 which is more than enough for most use cases)
+func (s *Server) GetLoops() int {
+	if s.loops < 1 {
+		s.loops = 4
+		if s.loops < 1 {
+			s.loops = 1
+		}
+	}
+	return s.loops
+}
+
+// Sets number of workerpool shards
+func (s *Server) SetWorkerpoolShards(num int) {
+	s.wpNumShards = num
+}
+
+// Returns number of workerpool shards (defaults to GOMAXPROCS*2)
+func (s *Server) GetWorkerpoolShards() int {
+	if s.wpNumShards < 1 {
+		s.wpNumShards = runtime.GOMAXPROCS(0) * 2
+	}
+	return s.wpNumShards
+}
+
+// This is kind of a hack to reduce GC cycles. Normally Go's GC kicks in
+// whenever used memory doubles (see runtime.SetGCPercent() or GOGC env var:
+// https://golang.org/pkg/runtime/debug/#SetGCPercent).
+// With a very low memory footprint this might dramatically impact your
+// performance, especially with lots of connections coming in waves.
+func (s *Server) SetBallast(sizeInMiB int) {
+	s.ballast = make([]byte, sizeInMiB * 1024 * 1024)
+}
+
 // Main accept loop
 func (s *Server) acceptLoop(id int) error {
 	var (
 		tempDelay time.Duration
 		tcpConn   net.Conn
-		conn      *Connection
 		err       error
 	)
 
@@ -309,10 +396,7 @@ func (s *Server) acceptLoop(id int) error {
 			continue
 		}
 
-		conn = s.connStructPool.Get().(*Connection)
-		conn.Conn = tcpConn
-
-		s.wp.AddTask(conn)
+		s.wp.AddTask(tcpConn)
 		//go s.serveConn(tcpConn)
 		tcpConn = nil
 	}
@@ -321,70 +405,47 @@ func (s *Server) acceptLoop(id int) error {
 
 // Serve a single connection (called from ultrapool)
 func (s *Server) serveConn(task ultrapool.Task) {
-	conn := task.(*Connection)
+	conn := s.connStructPool.Get().(Connection)
+	var netConn net.Conn = task.(net.Conn)
+
 	atomic.AddInt32(&s.activeConnections, 1)
 
 	if s.tlsEnabled {
-		conn.Conn = tls.Server(conn.Conn, s.GetTLSConfig())
+		netConn = tls.Server(netConn, s.GetTLSConfig())
 	}
 
-	conn.ts = time.Now().UnixNano()
+	conn.Reset(netConn)
+	conn.Start()
 	s.requestHandler(conn)
 	conn.Close()
 
-	conn.ctx = nil
-	conn.Conn = nil
 	s.connStructPool.Put(conn)
 
 	atomic.AddInt32(&s.activeConnections, -1)
 }
 
-// Sets request handler function
-func (s *Server) SetRequestHandler(f RequestHandlerFunc) {
-	s.requestHandler = f
-}
-
-// Sets context to the server that is later passed to the handleRequest method
-func (s *Server) SetContext(ctx *context.Context) {
-	s.ctx = ctx
-}
-
-// Returns server's context or creates a new one if none is present
-func (s *Server) GetContext() *context.Context {
-	if s.ctx == nil {
-		ctx := context.Background()
-		s.ctx = &ctx
-	}
-	return s.ctx
-}
-
-// Returns server
-func (conn *Connection) GetServer() *Server {
-	return conn.server
-}
-
 // Returns client IP and port
-func (conn *Connection) GetClientAddr() *net.TCPAddr {
+func (conn *TCPConn) GetClientAddr() *net.TCPAddr {
 	return conn.RemoteAddr().(*net.TCPAddr)
 }
 
 // Returns server IP and port (the addr the connection was accepted at)
-func (conn *Connection) GetServerAddr() *net.TCPAddr {
+func (conn *TCPConn) GetServerAddr() *net.TCPAddr {
 	return conn.LocalAddr().(*net.TCPAddr)
 }
 
 // Returns start timestamp
-func (conn *Connection) GetStartTime() time.Time {
+func (conn *TCPConn) GetStartTime() time.Time {
 	return time.Unix(conn.ts/1e9, conn.ts%1e9)
 }
 
-// Sets context to the connection that is later passed to the handleRequest method
-func (conn *Connection) SetContext(ctx *context.Context) {
+// Sets context to the connection
+func (conn *TCPConn) SetContext(ctx *context.Context) {
 	conn.ctx = ctx
 }
 
 // Returns connection's context or creates a new one if none is present
-func (conn *Connection) GetContext() *context.Context {
+func (conn *TCPConn) GetContext() *context.Context {
 	if conn.ctx == nil {
 		ctx := context.Background()
 		conn.ctx = &ctx
@@ -392,37 +453,29 @@ func (conn *Connection) GetContext() *context.Context {
 	return conn.ctx
 }
 
-// Sets number of accept loops
-func (s *Server) SetLoops(loops int) {
-	s.loops = loops
+// Sets server handler
+func (conn *TCPConn) SetServer(s *Server) {
+	conn.server = s
 }
 
-// Returns number of accept loops (defaults to 4 which is more than enough for most use cases)
-func (s *Server) GetLoops() int {
-	if s.loops < 1 {
-		s.loops = 4
-		if s.loops < 1 {
-			s.loops = 1
-		}
-	}
-	return s.loops
+// Returns server
+func (conn *TCPConn) GetServer() *Server {
+	return conn.server
 }
 
-// Sets number of workerpool shards
-func (s *Server) SetWorkerpoolShards(num int) {
-	s.wpNumShards = num
+// Resets the TCPConn for re-use
+func (conn *TCPConn) Reset(netConn net.Conn) {
+	conn.Conn = netConn
+	conn.ctx = nil
 }
 
-// Returns number of workerpool shards (defaults to GOMAXPROCS*2)
-func (s *Server) GetWorkerpoolShards() int {
-	if s.wpNumShards < 1 {
-		s.wpNumShards = runtime.GOMAXPROCS(0)*2
-	}
-	return s.wpNumShards
+// Sets start timer to "now"
+func (conn *TCPConn) Start() {
+	conn.ts = time.Now().UnixNano()
 }
 
 // Starts TLS inline
-func (conn *Connection) StartTLS(config *tls.Config) error {
+func (conn *TCPConn) StartTLS(config *tls.Config) error {
 	if config == nil {
 		config = conn.GetServer().GetTLSConfig()
 	}
