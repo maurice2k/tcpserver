@@ -32,8 +32,8 @@ type request struct {
 
 type reqVars struct {
 	data [2048]byte
-	out []byte
-	req request
+	out  []byte
+	req  request
 }
 
 var reqVarsPool *sync.Pool = &sync.Pool{
@@ -108,8 +108,8 @@ func main() {
 	flag.BoolVar(&sha, "sha", false, "output sha256 instead of plain response")
 	flag.IntVar(&sleep, "sleep", 0, "sleep number of milliseconds per request")
 
-	flag.IntVar(&loops, "loops", 0, "number of accept loops (defaults to GOMAXPROCS)")
-	flag.IntVar(&wpShards, "wpshards", 0, "number of workerpool shards (defaults to number of accept loops)")
+	flag.IntVar(&loops, "loops", -1, "number of accept loops (defaults to GOMAXPROCS)")
+	flag.IntVar(&wpShards, "wpshards", -1, "number of workerpool shards (defaults to number of accept loops)")
 
 	flag.Parse()
 
@@ -121,7 +121,7 @@ func main() {
 
 	resbytes = []byte(res)
 
-	fmt.Printf("Running http server on %s with GOMAXPROCS=%d\n", listenAddr, runtime.GOMAXPROCS(0))
+	fmt.Printf("Running http server on %s with GOMAXPROCS=%d, loops=%d\n", listenAddr, runtime.GOMAXPROCS(0), loops)
 	fmt.Printf(" - keepalive: %s\n", tfMap[keepAlive])
 	if sleep > 0 {
 		fmt.Printf(" - sleep ms per request: %d ms\n", sleep)
@@ -144,6 +144,7 @@ func main() {
 			server.SetRequestHandler(requestHandlerSimple)
 			server.SetLoops(loops)
 			server.SetWorkerpoolShards(wpShards)
+			server.SetAllowThreadLocking(true)
 			err := server.Listen()
 			if err != nil {
 				panic("Error listening on interface: " + err.Error())
@@ -165,6 +166,7 @@ func main() {
 	server.SetRequestHandler(requestHandlerSimple)
 	server.SetLoops(loops)
 	server.SetWorkerpoolShards(wpShards)
+	server.SetAllowThreadLocking(true)
 	err := server.Listen()
 	if err != nil {
 		panic("Error listening on interface: " + err.Error())
@@ -176,7 +178,7 @@ func main() {
 }
 
 func acquireReader(conn tcpserver.Connection) *bufio.Reader {
-	v:= brPool.Get()
+	v := brPool.Get()
 	if v == nil {
 		return bufio.NewReader(conn)
 	}
@@ -190,7 +192,7 @@ func releaseReader(br *bufio.Reader) {
 }
 
 func acquireWriter(conn tcpserver.Connection) *bufio.Writer {
-	v:= bwPool.Get()
+	v := bwPool.Get()
 	if v == nil {
 		return bufio.NewWriter(conn)
 	}
@@ -372,7 +374,7 @@ func writeResponse(w io.Writer, b, buf, status, body []byte) {
 	w.Write(b)
 }
 
-func appendrespbw(bw *bufio.Writer, buf[]byte, status, body []byte) {
+func appendrespbw(bw *bufio.Writer, buf []byte, status, body []byte) {
 	bw.Write(headerHTTP11)
 	bw.Write(status)
 	bw.Write(newLine)
@@ -446,7 +448,6 @@ func appendTime(b []byte, t time.Time) []byte {
 		byte('0'+ss/10), byte('0'+ss%10), ' ',
 		'G', 'M', 'T')
 }
-
 
 // parsereq is a very simple http request parser. This operation
 // waits for the entire payload to be buffered before returning a

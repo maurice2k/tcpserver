@@ -298,7 +298,7 @@ run_install() {
     pwd=`pwd`
     sudo apt install gnuplot git jq mc screen pv numactl -y
     cd /opt
-    sudo wget https://dl.google.com/go/go1.14.linux-amd64.tar.gz ; sudo tar xzf go1.14.*tar.gz
+    sudo wget https://dl.google.com/go/go1.15.3.linux-amd64.tar.gz ; sudo tar xzf go1.15.*tar.gz
     echo "export PATH=/opt/go/bin:$PATH" >> ~/.profile
     echo "export GOROOT=/opt/go" >> ~/.profile
     source ~/.profile

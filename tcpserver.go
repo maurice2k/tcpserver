@@ -43,6 +43,7 @@ type Server struct {
 	loops                int
 	wp                   *ultrapool.WorkerPool
 	wpNumShards          int
+	allowThreadLocking   bool
 	ballast              []byte
 }
 
@@ -234,11 +235,18 @@ func (s *Server) Serve() error {
 	s.wp.Start()
 	defer s.wp.Stop()
 
+	maxProcs := runtime.GOMAXPROCS(0)
+
 	loops := s.GetLoops()
 	errChan := make(chan error, loops)
 
 	for i := 0; i < loops; i++ {
 		go func(id int) {
+			if s.allowThreadLocking && maxProcs >= 4 && id < loops/2 {
+				runtime.LockOSThread()
+				defer runtime.UnlockOSThread()
+			}
+
 			errChan <- s.acceptLoop(id)
 		}(i)
 	}
@@ -303,9 +311,6 @@ func (s *Server) SetLoops(loops int) {
 func (s *Server) GetLoops() int {
 	if s.loops < 1 {
 		s.loops = 4
-		if s.loops < 1 {
-			s.loops = 1
-		}
 	}
 	return s.loops
 }
@@ -323,13 +328,18 @@ func (s *Server) GetWorkerpoolShards() int {
 	return s.wpNumShards
 }
 
+// Whether or not allow thread locking in accept loops
+func (s *Server) SetAllowThreadLocking(allow bool) {
+	s.allowThreadLocking = allow
+}
+
 // This is kind of a hack to reduce GC cycles. Normally Go's GC kicks in
 // whenever used memory doubles (see runtime.SetGCPercent() or GOGC env var:
 // https://golang.org/pkg/runtime/debug/#SetGCPercent).
 // With a very low memory footprint this might dramatically impact your
 // performance, especially with lots of connections coming in waves.
 func (s *Server) SetBallast(sizeInMiB int) {
-	s.ballast = make([]byte, sizeInMiB * 1024 * 1024)
+	s.ballast = make([]byte, sizeInMiB*1024*1024)
 }
 
 // Main accept loop

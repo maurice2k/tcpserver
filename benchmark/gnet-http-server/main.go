@@ -57,7 +57,6 @@ type httpCodec struct {
 var errMsg = "Internal Server Error"
 var errMsgBytes = []byte(errMsg)
 
-
 func (hc *httpCodec) Encode(c gnet.Conn, buf []byte) (out []byte, err error) {
 	if c.Context() == nil {
 		return appendresp(out, status200Ok, nil, buf), nil
@@ -80,7 +79,6 @@ func (hc *httpCodec) Decode(c gnet.Conn) ([]byte, error) {
 	c.ResetBuffer()
 	return buf, nil
 }
-
 
 func (hs *httpServer) OnInitComplete(srv gnet.Server) (action gnet.Action) {
 	log.Printf("http server using gnet started on %s with GOMAXPROCS=%d (loops: %d)", listenAddr, runtime.GOMAXPROCS(0), srv.NumEventLoop)
@@ -146,7 +144,7 @@ func main() {
 	hc := new(httpCodec)
 
 	// Start serving!
-	log.Fatal(gnet.Serve(http, "tcp://"+listenAddr, gnet.WithMulticore(true), gnet.WithCodec(hc)))
+	log.Fatal(gnet.Serve(http, "tcp://"+listenAddr, gnet.WithMulticore(true), gnet.WithCodec(hc), gnet.WithLockOSThread(true)))
 
 }
 

@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/maurice2k/tcpserver"
-
 	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
+	"net"
+
+	"github.com/maurice2k/tcpserver"
 )
 
 var listenAddr string
@@ -62,11 +63,12 @@ func main() {
 	}
 }
 
-func requestHandler(conn *tcpserver.TCPConn) {
+func requestHandler(conn tcpserver.Connection) {
 	if zeroCopy {
+		tcpConn := conn.(*tcpserver.TCPConn)
 		// automatically uses zero copy if conn.Conn is of type net.TCPConn,
 		// otherwise does a normal user space copy
-		_, _ = io.Copy(conn.Conn, conn.Conn)
+		_, _ = io.Copy(tcpConn.Conn.(*net.TCPConn), tcpConn.Conn.(*net.TCPConn))
 	} else {
 		buf := make([]byte, 4096)
 		for {
