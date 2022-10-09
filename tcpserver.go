@@ -2,7 +2,7 @@
 // IPv6 capable TCP server with TLS support, graceful shutdown and some
 // TCP tuning options like TCP_FASTOPEN, SO_RESUSEPORT and TCP_DEFER_ACCEPT.
 //
-// Copyright 2019-2020 Moritz Fain
+// Copyright 2019-2022 Moritz Fain
 // Moritz Fain <moritz@fain.io>
 //
 // Source available at github.com/maurice2k/tcpserver,
@@ -42,7 +42,6 @@ type Server struct {
 	connStructPool       sync.Pool
 	loops                int
 	wp                   *ultrapool.WorkerPool
-	wpNumShards          int
 	allowThreadLocking   bool
 	ballast              []byte
 }
@@ -50,16 +49,18 @@ type Server struct {
 // Connection interface
 type Connection interface {
 	net.Conn
-	SetServer(server *Server)
-	Reset(netConn net.Conn)
-
+	GetNetConn() net.Conn
 	GetServer() *Server
 	GetClientAddr() *net.TCPAddr
 	GetServerAddr() *net.TCPAddr
 	GetStartTime() time.Time
 	SetContext(ctx *context.Context)
 	GetContext() *context.Context
+
+	// used internally
 	Start()
+	Reset(netConn net.Conn)
+	SetServer(server *Server)
 }
 
 // TCPConn struct implementing Connection and embedding net.Conn
@@ -139,6 +140,15 @@ func (s *Server) GetTLSConfig() *tls.Config {
 	return s.tlsConfig
 }
 
+// Enable TLS (use server.SetTLSConfig() first)
+func (s *Server) EnableTLS() error {
+	if s.GetTLSConfig() == nil {
+		return fmt.Errorf("no TLS config set")
+	}
+	s.tlsEnabled = true
+	return nil
+}
+
 // Sets listen config
 func (s *Server) SetListenConfig(config *ListenConfig) {
 	s.listenConfig = config
@@ -172,10 +182,10 @@ func (s *Server) Listen() (err error) {
 
 // Starts listening using TLS
 func (s *Server) ListenTLS() (err error) {
-	if s.GetTLSConfig() == nil {
-		return fmt.Errorf("No TLS config set!")
+	err = s.EnableTLS()
+	if err != nil {
+		return err
 	}
-	s.tlsEnabled = true
 	return s.Listen()
 }
 
@@ -229,20 +239,20 @@ func (s *Server) Serve() error {
 		return fmt.Errorf("no valid listener found; call Listen() or ListenTLS() first")
 	}
 
+	maxProcs := runtime.GOMAXPROCS(0)
+	loops := s.GetLoops()
+
 	s.wp = ultrapool.NewWorkerPool(s.serveConn)
-	s.wp.SetNumShards(s.GetWorkerpoolShards())
+	s.wp.SetNumShards(maxProcs * 2)
 	s.wp.SetIdleWorkerLifetime(5 * time.Second)
 	s.wp.Start()
 	defer s.wp.Stop()
 
-	maxProcs := runtime.GOMAXPROCS(0)
-
-	loops := s.GetLoops()
 	errChan := make(chan error, loops)
 
 	for i := 0; i < loops; i++ {
 		go func(id int) {
-			if s.allowThreadLocking && maxProcs >= 4 && id < loops/2 {
+			if s.allowThreadLocking && maxProcs >= 2 && id < loops/2 {
 				runtime.LockOSThread()
 				defer runtime.UnlockOSThread()
 			}
@@ -307,25 +317,12 @@ func (s *Server) SetLoops(loops int) {
 	s.loops = loops
 }
 
-// Returns number of accept loops (defaults to 4 which is more than enough for most use cases)
+// Returns number of accept loops (defaults to 8 which is more than enough for most use cases)
 func (s *Server) GetLoops() int {
 	if s.loops < 1 {
-		s.loops = 4
+		s.loops = 8
 	}
 	return s.loops
-}
-
-// Sets number of workerpool shards
-func (s *Server) SetWorkerpoolShards(num int) {
-	s.wpNumShards = num
-}
-
-// Returns number of workerpool shards (defaults to GOMAXPROCS*2)
-func (s *Server) GetWorkerpoolShards() int {
-	if s.wpNumShards < 1 {
-		s.wpNumShards = runtime.GOMAXPROCS(0) * 2
-	}
-	return s.wpNumShards
 }
 
 // Whether or not allow thread locking in accept loops
@@ -415,8 +412,8 @@ func (s *Server) acceptLoop(id int) error {
 
 // Serve a single connection (called from ultrapool)
 func (s *Server) serveConn(task ultrapool.Task) {
-	conn := s.connStructPool.Get().(Connection)
-	var netConn net.Conn = task.(net.Conn)
+	conn := s.connStructPool.Get().(*TCPConn)
+	netConn := task.(net.Conn)
 
 	atomic.AddInt32(&s.activeConnections, 1)
 
@@ -428,10 +425,9 @@ func (s *Server) serveConn(task ultrapool.Task) {
 	conn.Start()
 	s.requestHandler(conn)
 	conn.Close()
+	atomic.AddInt32(&s.activeConnections, -1)
 
 	s.connStructPool.Put(conn)
-
-	atomic.AddInt32(&s.activeConnections, -1)
 }
 
 // Returns client IP and port
@@ -461,6 +457,17 @@ func (conn *TCPConn) GetContext() *context.Context {
 		conn.ctx = &ctx
 	}
 	return conn.ctx
+}
+
+// Returns underlying net.Conn connection (most likely either *net.TCPConn or *tls.Conn)
+func (conn *TCPConn) GetNetConn() net.Conn {
+	return conn.Conn
+}
+
+// Returns underlying net.Conn connection as *net.TCPConn or nil if net.Conn is something else
+func (conn *TCPConn) GetNetTCPConn() (c *net.TCPConn) {
+	c, _ = conn.Conn.(*net.TCPConn)
+	return
 }
 
 // Sets server handler

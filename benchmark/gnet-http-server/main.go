@@ -81,7 +81,7 @@ func (hc *httpCodec) Decode(c gnet.Conn) ([]byte, error) {
 }
 
 func (hs *httpServer) OnInitComplete(srv gnet.Server) (action gnet.Action) {
-	log.Printf("http server using gnet started on %s with GOMAXPROCS=%d (loops: %d)", listenAddr, runtime.GOMAXPROCS(0), srv.NumEventLoop)
+	log.Printf("http server using gnet started on %s with GOMAXPROCS=%d, loops: %d; built with %s", listenAddr, runtime.GOMAXPROCS(0), srv.NumEventLoop, runtime.Version())
 	return
 }
 
@@ -116,6 +116,24 @@ func (hs *httpServer) React(frame []byte, c gnet.Conn) (out []byte, action gnet.
 }
 
 func main() {
+	/*	go func() {
+		sigIntChan := make(chan os.Signal)
+		signal.Notify(sigIntChan, os.Interrupt)
+
+		traceFile, err := os.Create("gnet.trace")
+		if err != nil {
+			panic(err)
+		}
+
+		trace.Start(traceFile)
+		<-sigIntChan
+
+		trace.Stop()
+		traceFile.Close()
+		fmt.Println("Closed trace file")
+		os.Exit(1)
+	}()/**/
+
 	var loops int
 	var aaaa int
 	var unixsocket string

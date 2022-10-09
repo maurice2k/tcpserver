@@ -1,4 +1,4 @@
-// Copyright 2019 Moritz Fain
+// Copyright 2019-2022 Moritz Fain
 // Moritz Fain <moritz@fain.io>
 
 // +build linux
