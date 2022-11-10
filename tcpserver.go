@@ -416,6 +416,7 @@ func (s *Server) serveConn(task ultrapool.Task) {
 	netConn := task.(net.Conn)
 
 	atomic.AddInt32(&s.activeConnections, 1)
+	s.connWaitGroup.Add(1)
 
 	if s.tlsEnabled {
 		netConn = tls.Server(netConn, s.GetTLSConfig())
@@ -425,6 +426,7 @@ func (s *Server) serveConn(task ultrapool.Task) {
 	conn.Start()
 	s.requestHandler(conn)
 	conn.Close()
+	s.connWaitGroup.Done()
 	atomic.AddInt32(&s.activeConnections, -1)
 
 	s.connStructPool.Put(conn)
